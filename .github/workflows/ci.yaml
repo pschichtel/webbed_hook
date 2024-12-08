@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         profile: [ 'dev', 'release' ]
-    name: 'Build ${{ matrix.version }}'
+    name: 'Build ${{ matrix.profile }}'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -26,4 +26,4 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Compile
-        run: cargo build --profile ${{ matrix.version }} --quiet
+        run: cargo build --profile ${{ matrix.profile }} --quiet
