@@ -2,7 +2,9 @@
   <configuration default="false" name="Run receiver" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="command" value="run --package webbed_hook_receiver --bin webbed_hook_receiver" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <envs />
+    <envs>
+      <env name="RESTRICT_GLOB_PATTERN" value="**/*.json" />
+    </envs>
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
