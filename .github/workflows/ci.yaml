@@ -12,8 +12,12 @@ jobs:
   build:
     strategy:
       matrix:
-        profile: [ 'debug', 'release' ]
-    name: 'Build ${{ matrix.profile }}'
+        profile:
+        - name: 'dev'
+          target_folder: 'debug'
+        - name: 'release'
+          target_folder: 'release'
+    name: 'Build ${{ matrix.profile.name }}'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -25,13 +29,13 @@ jobs:
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.profile }}
+          key: ${{ matrix.profile.name }}
 
       - name: Compile
-        run: cargo build --profile ${{ matrix.profile }} --quiet
+        run: cargo build --profile ${{ matrix.profile.name }} --quiet
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.profile }}
-          path: target/${{ matrix.profile }}/webbed_hook
+          name: ${{ matrix.profile.name }}
+          path: target/${{ matrix.profile.target_folder }}/webbed_hook
