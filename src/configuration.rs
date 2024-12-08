@@ -6,6 +6,7 @@ use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
+use std::time::Duration;
 use reqwest::Url;
 
 pub struct Pattern(pub Regex);
@@ -180,6 +181,8 @@ pub struct Hook {
     pub url: URL,
     pub config: Option<Value>,
     pub reject_on_error: Option<bool>,
+    pub request_timeout: Option<Duration>,
+    pub connect_timeout: Option<Duration>,
 }
 
 impl Hook {

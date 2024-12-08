@@ -1,4 +1,5 @@
 use std::env;
+use std::fmt::Display;
 use crate::configuration::Hook;
 use reqwest::redirect;
 use serde::Serialize;
@@ -6,6 +7,7 @@ use serde_json::Value;
 use std::time::Duration;
 use crate::gitlab::{get_gitlab_metadata, GitlabMetadata};
 use crate::util::env_as;
+use crate::webhook::HookError::Validation;
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -58,11 +60,44 @@ fn get_metadata() -> Metadata {
         .unwrap_or(Metadata::None)
 }
 
-pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, reqwest::Error> {
+pub enum HookError {
+    Request(reqwest::Error),
+    Validation(String),
+}
+
+impl Display for HookError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HookError::Request(e) => {
+                write!(f, "Request error: {}", e)
+            }
+            HookError::Validation(msg) => {
+                write!(f, "Validation error: {}", msg)
+            }
+        }
+    }
+}
+
+const MAX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+const MAX_REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, HookError> {
+    let connect_timeout = hook.connect_timeout.unwrap_or(DEFAULT_CONNECT_TIMEOUT);
+    if connect_timeout > MAX_CONNECT_TIMEOUT {
+        return Err(Validation(format!("Connect timeout of {}ms is longer than maximum value of {}ms", connect_timeout.as_millis(), &MAX_CONNECT_TIMEOUT.as_millis())))
+    }
+    
+    let request_timeout = hook.request_timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    if connect_timeout > MAX_REQUEST_TIMEOUT {
+        return Err(Validation(format!("Request timeout of {}ms is longer than maximum value of {}ms", request_timeout.as_millis(), &MAX_REQUEST_TIMEOUT.as_millis())))
+    }
+    
     let client = reqwest::blocking::Client::builder()
         .redirect(redirect::Policy::limited(5))
-        .connect_timeout(Duration::from_secs(1))
-        .timeout(Duration::from_secs(10))
+        .connect_timeout(connect_timeout)
+        .timeout(request_timeout)
         .tcp_keepalive(None)
         .deflate(false)
         .http1_only()
@@ -89,4 +124,5 @@ pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<Web
             let messages = res.json::<Vec<String>>().ok().unwrap_or_default();
             WebhookResult(success, messages)
         })
+        .map_err(HookError::Request)
 }
