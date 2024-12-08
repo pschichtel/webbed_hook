@@ -1,0 +1,275 @@
+use crate::get_absolute_program_path;
+use nonempty::NonEmpty;
+use regex::Regex;
+use serde::de::{Error, Unexpected, Visitor};
+use serde::{Deserialize, Deserializer};
+use serde_json::Value;
+use std::fmt::{Debug, Formatter};
+use std::path::Path;
+use reqwest::Url;
+
+pub struct Pattern(pub Regex);
+
+struct PatternVisitor;
+
+fn parse_pattern<E>(str: &str) -> Result<Pattern, E>
+where
+    E: Error
+{
+    if str.is_empty() {
+        return Err(E::invalid_length(0, &"non-empty regex"));
+    }
+    match Regex::new(str) {
+        Ok(regex) => Ok(Pattern(regex)),
+        Err(err) => Err(E::invalid_value(Unexpected::Str(err.to_string().as_str()), &"a valid regex"))
+    }
+}
+
+impl<'de> Visitor<'de> for PatternVisitor {
+    type Value = Pattern;
+
+    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+        formatter.write_str("a valid regex")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: Error
+    {
+        parse_pattern(v)
+    }
+
+    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+    where
+        E: Error
+    {
+        parse_pattern(v)
+    }
+
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    where
+        E: Error
+    {
+        parse_pattern(v.as_str())
+    }
+}
+
+impl <'de> Deserialize<'de> for Pattern {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        deserializer.deserialize_str(PatternVisitor)
+    }
+
+    fn deserialize_in_place<D>(deserializer: D, place: &mut Self) -> Result<(), D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        match deserializer.deserialize_str(PatternVisitor) {
+            Ok(pattern) => {
+                *place = pattern;
+                Ok(())
+            }
+            Err(err) => Err(err)
+        }
+    }
+}
+
+impl Debug for Pattern {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+pub struct URL(pub Url);
+
+struct URLVisitor;
+
+fn parse_url<E>(str: &str) -> Result<URL, E>
+where
+    E: Error
+{
+    if str.is_empty() {
+        return Err(E::invalid_length(0, &"non-empty regex"));
+    }
+    match Url::parse(str) {
+        Ok(url) => Ok(URL(url)),
+        Err(err) => Err(E::invalid_value(Unexpected::Str(err.to_string().as_str()), &"a valid URL"))
+    }
+}
+
+impl<'de> Visitor<'de> for URLVisitor {
+    type Value = URL;
+
+    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+        formatter.write_str("a valid URL")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: Error
+    {
+        parse_url(v)
+    }
+
+    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+    where
+        E: Error
+    {
+        parse_url(v)
+    }
+
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    where
+        E: Error
+    {
+        parse_url(v.as_str())
+    }
+}
+
+impl <'de> Deserialize<'de> for URL {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        deserializer.deserialize_str(URLVisitor)
+    }
+
+    fn deserialize_in_place<D>(deserializer: D, place: &mut Self) -> Result<(), D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        match deserializer.deserialize_str(URLVisitor) {
+            Ok(url) => {
+                *place = url;
+                Ok(())
+            }
+            Err(err) => Err(err)
+        }
+    }
+}
+
+impl Debug for URL {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub enum RefSelector {
+    #[serde(rename = "tag")]
+    Tag {
+        name: String,
+    },
+    #[serde(rename = "branch")]
+    Branch {
+        name: String,
+    },
+    #[serde(rename = "ref-regex")]
+    RefRegex {
+        pattern: Pattern,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Hook {
+    pub ref_selectors: NonEmpty<RefSelector>,
+    pub url: URL,
+    pub config: Option<Value>,
+}
+
+impl Hook {
+    pub fn applies_to(&self, ref_name: &str) -> bool {
+        for selector in &self.ref_selectors {
+            match selector {
+                RefSelector::Branch { name } => {
+                    let full_ref = format!("refs/heads/{}", name);
+                    println!("branch {}: {} vs {}", name, ref_name, full_ref);
+                    if ref_name == full_ref {
+                        return true;
+                    }
+                }
+                RefSelector::Tag { name } => {
+                    let full_ref = format!("refs/tags/{}", name);
+                    println!("tag {}: {} vs {}", name, ref_name, full_ref);
+                    if ref_name == full_ref {
+                        return true;
+                    }
+                }
+                RefSelector::RefRegex { pattern } => {
+                    println!("ref-regex {}: match {}", pattern.0, ref_name);
+                    if pattern.0.is_match(ref_name) {
+                        return true
+                    }
+                }
+            }
+        }
+        false
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ConfigurationVersion1 {
+    pre_receive: Option<Hook>,
+    post_receive: Option<Hook>,
+    update: Option<Hook>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[serde(tag = "version")]
+pub enum Configuration {
+    #[serde(rename = "1")]
+    Version1(ConfigurationVersion1)
+}
+
+impl ConfigurationVersion1 {
+    pub fn select_hook(&self) -> &Option<Hook> {
+        let exe_path = match get_absolute_program_path() {
+            Ok(path) => path,
+            Err(_) => return &None
+        };
+        let by_name = hook_by_executable_name(&self, &exe_path);
+        if by_name.is_some() {
+            return by_name;
+        }
+
+        let by_parent = hook_by_parent_dir_name(&self, &exe_path);
+        if by_parent.is_some() {
+            return by_parent;
+        }
+
+        &None
+    }
+}
+
+fn hook_by_executable_name<'a>(configuration: &'a ConfigurationVersion1, path: &Path) -> &'a Option<Hook> {
+    match path.file_name().and_then(|f| f.to_str()) {
+        Some(name) => hook_by_name(configuration, name),
+        None => &None
+    }
+}
+
+fn hook_by_parent_dir_name<'a>(configuration: &'a ConfigurationVersion1, path: &Path) -> &'a Option<Hook> {
+    match path.parent().and_then(|f| f.file_name()).and_then(|f| f.to_str()) {
+        Some(name) => hook_by_name(configuration, name.trim_end_matches(".d")),
+        None => &None
+    }
+}
+
+fn hook_by_name<'a>(configuration: &'a ConfigurationVersion1, name: &str) -> &'a Option<Hook> {
+    match name {
+        "pre-receive" => {
+            &configuration.pre_receive
+        },
+        "post-receive" => {
+            &configuration.post_receive
+        },
+        "update" => &configuration.update,
+        _ => &None,
+    }
+}
