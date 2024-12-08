@@ -88,6 +88,7 @@ fn format_patch(old_commit: &str, new_commit: &str) -> Option<String> {
 fn get_default_branch() -> Option<String> {
     run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
         .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|branch_name| branch_name.trim_end().to_string())
 }
 
 pub fn get_absolute_program_path() -> Result<PathBuf, std::io::Error> {
