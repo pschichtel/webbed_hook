@@ -25,17 +25,6 @@ pub enum Metadata {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
-pub struct Request<'a> {
-    pub version: &'a str,
-    pub config: Value,
-    pub changes: Vec<ChangeWithPatch>,
-    pub push_options: Vec<String>,
-    pub signature: Option<PushSignature>,
-    pub metadata: Metadata,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "kebab-case")]
 pub enum PushSignatureStatus {
     #[serde(rename = "good")]
     Good,
@@ -96,4 +85,24 @@ pub struct PushSignature {
     pub key: String,
     pub status: PushSignatureStatus,
     pub nonce: CertificateNonce,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub struct WebhookRequest {
+    pub version: String,
+    pub config: Value,
+    pub changes: Vec<ChangeWithPatch>,
+    pub push_options: Vec<String>,
+    pub signature: Option<PushSignature>,
+    pub metadata: Metadata,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WebhookResponse(Vec<String>);
+
+impl Default for WebhookResponse {
+    fn default() -> Self {
+        WebhookResponse(Vec::default())
+    }
 }

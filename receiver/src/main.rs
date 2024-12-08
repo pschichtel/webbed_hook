@@ -1,11 +1,12 @@
-use actix_web::{post, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web::web;
-use serde_json::Value;
+use actix_web::{post, App, HttpRequest, HttpServer, Responder};
+use webbed_hook_core::webhook::{WebhookRequest, WebhookResponse};
 
 #[post("/validate")]
-async fn hello<'a>(req: HttpRequest, body: web::Json<Value>) -> impl Responder {
-    println!("REQ: {:?} with body: {:?}", req, body.0);
-    HttpResponse::NoContent()
+async fn hello(req: HttpRequest, body: web::Json<WebhookRequest>) -> impl Responder {
+    let payload = body.0;
+    println!("REQ: {:?} with body: {:?}", req, payload);
+    web::Json(WebhookResponse::default())
 }
 
 #[actix_web::main]

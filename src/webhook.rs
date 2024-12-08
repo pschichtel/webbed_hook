@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::time::Duration;
 use webbed_hook_core::gitlab::get_gitlab_metadata;
 use webbed_hook_core::util::env_as;
-use webbed_hook_core::webhook::{CertificateNonce, ChangeWithPatch, Metadata, PushSignature, PushSignatureStatus, Request};
+use webbed_hook_core::webhook::{CertificateNonce, ChangeWithPatch, Metadata, PushSignature, PushSignatureStatus, WebhookRequest, WebhookResponse};
 
 
 
@@ -117,7 +117,7 @@ const MAX_REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Debug)]
-pub struct WebhookResult(pub bool, pub Vec<String>);
+pub struct WebhookResult(pub bool, pub WebhookResponse);
 
 pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, HookError> {
     let connect_timeout = hook.connect_timeout.unwrap_or(DEFAULT_CONNECT_TIMEOUT);
@@ -144,8 +144,8 @@ pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<Web
         None => Value::Null,
     };
 
-    let request_body = Request{
-        version: "1",
+    let request_body = WebhookRequest {
+        version: "1".to_string(),
         config,
         changes,
         push_options: get_push_options(),
@@ -158,7 +158,7 @@ pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<Web
         .send()
         .map(|res| {
             let success = res.status().is_success();
-            let messages = res.json::<Vec<String>>().ok().unwrap_or_default();
+            let messages = res.json::<WebhookResponse>().ok().unwrap_or_default();
             WebhookResult(success, messages)
         })
         .map_err(HookError::Request)
