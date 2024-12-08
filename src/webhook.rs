@@ -16,6 +16,7 @@ pub struct ChangeWithPatch {
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct Request<'a> {
+    pub version: &'a str,
     pub config: &'a Value,
     pub changes: Vec<ChangeWithPatch>,
 }
@@ -38,6 +39,7 @@ pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<Web
         None => &Value::Null,
     };
     let request_body = Request{
+        version: "1",
         config,
         changes
     };
