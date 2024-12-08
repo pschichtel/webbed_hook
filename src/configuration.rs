@@ -187,20 +187,17 @@ impl Hook {
             match selector {
                 RefSelector::Branch { name } => {
                     let full_ref = format!("refs/heads/{}", name);
-                    println!("branch {}: {} vs {}", name, ref_name, full_ref);
                     if ref_name == full_ref {
                         return true;
                     }
                 }
                 RefSelector::Tag { name } => {
                     let full_ref = format!("refs/tags/{}", name);
-                    println!("tag {}: {} vs {}", name, ref_name, full_ref);
                     if ref_name == full_ref {
                         return true;
                     }
                 }
                 RefSelector::RefRegex { pattern } => {
-                    println!("ref-regex {}: match {}", pattern.0, ref_name);
                     if pattern.0.is_match(ref_name) {
                         return true
                     }

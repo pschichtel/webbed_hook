@@ -70,7 +70,6 @@ fn applies_to_changes(hook: &Hook, changes: &Vec<Change>) -> bool {
             return true;
         }
     }
-    println!("doesn't apply!");
     false
 }
 
@@ -101,7 +100,6 @@ fn main() {
                 }
             })
             .collect::<Vec<Change>>();
-        println!("changes: {:?}", changes);
 
         if !applies_to_changes(&hook, &changes) {
             exit(0);
@@ -137,7 +135,4 @@ fn main() {
         }
 
     }
-
-    println!("config: {:?}", config);
-    println!("hook: {:?}", hook);
 }
