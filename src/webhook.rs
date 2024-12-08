@@ -4,6 +4,8 @@ use reqwest::redirect;
 use serde::Serialize;
 use serde_json::Value;
 use std::time::Duration;
+use crate::gitlab::{get_gitlab_metadata, GitlabMetadata};
+use crate::util::env_as;
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -16,27 +18,44 @@ pub struct ChangeWithPatch {
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
+#[serde(tag = "type")]
+pub enum Metadata {
+    #[serde(rename = "gitlab")]
+    GitLab(GitlabMetadata),
+
+    #[serde(rename = "none")]
+    None,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
 struct Request<'a> {
     pub version: &'a str,
     pub config: &'a Value,
     pub changes: &'a Vec<ChangeWithPatch>,
     pub push_options: &'a Vec<String>,
+    pub metadata: Metadata,
 }
 
 #[derive(Debug)]
 pub struct WebhookResult(pub bool, pub Vec<String>);
 
+
 fn get_push_options() -> Vec<String> {
-    let option_count_str = env::var_os("GIT_PUSH_OPTION_COUNT")
-        .and_then(|s| s.into_string().ok())
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(0);
+    let option_count_str = env_as("GIT_PUSH_OPTION_COUNT")
+        .unwrap_or(0u64);
     if option_count_str == 0 {
         return vec![];
     }
     (0..option_count_str).filter_map(|n| {
-        env::var_os(format!("GIT_PUSH_OPTION_{}", n)).and_then(|s| s.into_string().ok())
+        env::var(format!("GIT_PUSH_OPTION_{}", n)).ok()
     }).collect()
+}
+
+fn get_metadata() -> Metadata {
+    get_gitlab_metadata()
+        .map(Metadata::GitLab)
+        .unwrap_or(Metadata::None)
 }
 
 pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, reqwest::Error> {
@@ -59,6 +78,7 @@ pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<Web
         config,
         changes: &changes,
         push_options: &get_push_options(),
+        metadata: get_metadata(),
     };
 
     client.post(hook.url.0.clone())

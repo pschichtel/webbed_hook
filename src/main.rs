@@ -11,6 +11,8 @@ use crate::configuration::{Configuration, Hook};
 
 mod webhook;
 mod configuration;
+mod gitlab;
+mod util;
 
 #[derive(Debug)]
 pub struct Change {
@@ -78,7 +80,7 @@ fn main() {
         Some(configuration) => configuration,
         None => exit(0),
     };
-    
+
     let config = match config {
         Configuration::Version1(v1) => v1
     };
