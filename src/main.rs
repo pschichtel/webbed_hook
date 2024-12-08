@@ -140,7 +140,8 @@ fn main() {
             }
             Err(error) => {
                 eprintln!("hook failed: {}", error);
-                exit(1);
+                let reject = hook.reject_on_error.unwrap_or(true);
+                exit(if reject { 1 } else { 0 });
             }
         }
 

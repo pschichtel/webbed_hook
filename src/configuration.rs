@@ -179,6 +179,7 @@ pub struct Hook {
     pub ref_selectors: NonEmpty<RefSelector>,
     pub url: URL,
     pub config: Option<Value>,
+    pub reject_on_error: Option<bool>,
 }
 
 impl Hook {
