@@ -149,7 +149,7 @@ fn get_certificate_nonce() -> CertificateNonce {
 
 #[derive(Serialize, Debug)]
 pub struct PushSignature {
-    cert: String,
+    certificate: String,
     signer: String,
     key: String,
     status: PushSignatureStatus,
@@ -176,7 +176,7 @@ fn get_push_signature() -> Option<PushSignature> {
     let nonce = get_certificate_nonce();
 
     Some(PushSignature {
-        cert,
+        certificate: cert,
         signer,
         key,
         status,

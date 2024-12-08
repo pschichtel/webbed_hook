@@ -1,0 +1,281 @@
+{
+  "$id": "https://schich.tel/webbed_hook/request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": [
+        "1"
+      ]
+    },
+    "config": {
+      "type": ["object", "array", "string", "number", "integer", "boolean", "null"]
+    },
+    "changes": {
+      "type": "array",
+      "minLength": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "old-commit": {
+            "type": "string"
+          },
+          "new-commit": {
+            "type": "string"
+          },
+          "ref-name": {
+            "type": "string"
+          },
+          "patch": {
+            "type": "string",
+            "format": "base64"
+          }
+        },
+        "required": [
+          "old-commit",
+          "new-commit",
+          "ref-name"
+        ]
+      }
+    },
+    "push-options": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "signature": {
+      "type": "object",
+      "properties": {
+        "certificate": {
+          "type": "string"
+        },
+        "signer": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "good",
+            "bad",
+            "unknown-validity",
+            "expired",
+            "expired-key",
+            "revoked-key",
+            "cannot-check",
+            "no-signature"
+          ]
+        },
+        "nonce": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["unsolicited"]
+                },
+                "nonce": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "nonce"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["missing"]
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["bad"]
+                },
+                "nonce": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "nonce"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["ok"]
+                },
+                "nonce": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "nonce"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["slop"]
+                },
+                "nonce": {
+                  "type": "string"
+                },
+                "stale-seconds": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "type",
+                "nonce",
+                "stale-seconds"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "certificate",
+        "signer",
+        "key",
+        "status",
+        "nonce"
+      ]
+    },
+    "metadata": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["gitlab"]
+            },
+            "id": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["user"]
+                    },
+                    "id": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["key"]
+                    },
+                    "id": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ]
+                }
+              ]
+            },
+            "project-path": {
+              "type": "string"
+            },
+            "protocol": {
+              "type": "string",
+              "enum": [
+                "http",
+                "ssh",
+                "web"
+              ]
+            },
+            "repository": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["project"]
+                    },
+                    "id": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ]
+                }
+              ]
+            },
+            "username": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "project-path",
+            "protocol",
+            "repository",
+            "username"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "none"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "config",
+    "changes",
+    "push-options",
+    "signature",
+    "metadata"
+  ]
+}

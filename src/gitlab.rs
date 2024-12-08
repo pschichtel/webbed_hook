@@ -8,9 +8,9 @@ use std::str::FromStr;
 #[serde(tag = "type")]
 enum GitlabId {
     #[serde(rename = "user")]
-    User(u64),
+    User { id: u64 },
     #[serde(rename = "key")]
-    Key(u64),
+    Key { id: u64 },
 }
 
 #[derive(Debug)]
@@ -38,12 +38,12 @@ impl FromStr for GitlabId {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.starts_with("user-") {
             return s.parse::<u64>()
-                .map(GitlabId::User)
+                .map(|id| GitlabId::User{id})
                 .map_err(|e| GitlabParseError::ParseIntError(e))
         }
         if s.starts_with("key-") {
             return s.parse::<u64>()
-                .map(GitlabId::Key)
+                .map(|id| GitlabId::Key{id})
                 .map_err(|e| GitlabParseError::ParseIntError(e))
         }
         Err(GitlabParseError::UnsupportedInput(s.to_string()))
@@ -77,7 +77,7 @@ impl FromStr for GitlabProtocol {
 #[serde(tag = "type")]
 pub enum GitlabRepository {
     #[serde(rename = "project")]
-    ProjectId(u64)
+    ProjectId { id: u64 },
 }
 
 impl FromStr for GitlabRepository {
@@ -86,7 +86,7 @@ impl FromStr for GitlabRepository {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.starts_with("project-") {
             return s.parse::<u64>()
-                .map(GitlabRepository::ProjectId)
+                .map(|id| GitlabRepository::ProjectId{id})
                 .map_err(|e| GitlabParseError::ParseIntError(e))
         }
         Err(GitlabParseError::UnsupportedInput(s.to_string()))
