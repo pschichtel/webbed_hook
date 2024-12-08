@@ -91,6 +91,7 @@ pub struct PushSignature {
 #[serde(rename_all = "kebab-case")]
 pub struct WebhookRequest {
     pub version: String,
+    pub default_branch: String,
     pub config: Value,
     pub changes: Vec<ChangeWithPatch>,
     pub push_options: Vec<String>,

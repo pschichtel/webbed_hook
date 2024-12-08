@@ -85,6 +85,11 @@ fn format_patch(old_commit: &str, new_commit: &str) -> Option<String> {
         })
 }
 
+fn get_default_branch() -> Option<String> {
+    run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+}
+
 pub fn get_absolute_program_path() -> Result<PathBuf, std::io::Error> {
     let program_name = env::args().next().expect("No program name provided");
     let path = Path::new(program_name.as_str());
@@ -105,6 +110,10 @@ fn applies_to_changes(hook: &Hook, changes: &Vec<Change>) -> bool {
 }
 
 fn main() {
+    let default_branch = match get_default_branch() {
+        Some(branch) => branch,
+        None => exit(0)
+    };
     let config = match load_config_from_default_branch() {
         Some(configuration) => configuration,
         None => exit(0),
@@ -123,7 +132,7 @@ fn main() {
 
         let with_patch = create_patches(changes);
 
-        match perform_request(hook, with_patch) {
+        match perform_request(default_branch, hook, with_patch) {
             Ok(WebhookResult(success, WebhookResponse(messages))) => {
                 if success {
                     for message in messages {

@@ -119,7 +119,7 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 #[derive(Debug)]
 pub struct WebhookResult(pub bool, pub WebhookResponse);
 
-pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, HookError> {
+pub fn perform_request(default_branch: String, hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, HookError> {
     let connect_timeout = hook.connect_timeout.unwrap_or(DEFAULT_CONNECT_TIMEOUT);
     if connect_timeout > MAX_CONNECT_TIMEOUT {
         return Err(HookError::Validation(format!("Connect timeout of {}ms is longer than maximum value of {}ms", connect_timeout.as_millis(), &MAX_CONNECT_TIMEOUT.as_millis())))
@@ -146,6 +146,7 @@ pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<Web
 
     let request_body = WebhookRequest {
         version: "1".to_string(),
+        default_branch: default_branch.to_string(),
         config,
         changes,
         push_options: get_push_options(),

@@ -9,6 +9,9 @@
         "1"
       ]
     },
+    "default-branch": {
+      "type": "string"
+    },
     "config": {
       "type": ["object", "array", "string", "number", "integer", "boolean", "null"]
     },
@@ -272,6 +275,7 @@
   },
   "required": [
     "version",
+    "default-branch",
     "config",
     "changes",
     "push-options",
