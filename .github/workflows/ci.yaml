@@ -12,7 +12,7 @@ jobs:
   build:
     strategy:
       matrix:
-        profile: [ 'dev', 'release' ]
+        profile: [ 'debug', 'release' ]
     name: 'Build ${{ matrix.profile }}'
     runs-on: ubuntu-latest
     steps:
@@ -34,4 +34,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.profile }}
-          path: target/webbed_hook
+          path: target/${{ matrix.profile }}/webbed_hook
