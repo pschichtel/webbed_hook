@@ -24,6 +24,8 @@ jobs:
 
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.profile }}
 
       - name: Compile
         run: cargo build --profile ${{ matrix.profile }} --quiet
