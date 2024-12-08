@@ -1,3 +1,4 @@
+use std::env;
 use crate::configuration::Hook;
 use reqwest::redirect;
 use serde::Serialize;
@@ -18,11 +19,25 @@ pub struct ChangeWithPatch {
 struct Request<'a> {
     pub version: &'a str,
     pub config: &'a Value,
-    pub changes: Vec<ChangeWithPatch>,
+    pub changes: &'a Vec<ChangeWithPatch>,
+    pub push_options: &'a Vec<String>,
 }
 
 #[derive(Debug)]
 pub struct WebhookResult(pub bool, pub Vec<String>);
+
+fn get_push_options() -> Vec<String> {
+    let option_count_str = env::var_os("GIT_PUSH_OPTION_COUNT")
+        .and_then(|s| s.into_string().ok())
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(0);
+    if option_count_str == 0 {
+        return vec![];
+    }
+    (0..option_count_str).filter_map(|n| {
+        env::var_os(format!("GIT_PUSH_OPTION_{}", n)).and_then(|s| s.into_string().ok())
+    }).collect()
+}
 
 pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, reqwest::Error> {
     let client = reqwest::blocking::Client::builder()
@@ -38,10 +53,12 @@ pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<Web
         Some(ref c) => c,
         None => &Value::Null,
     };
+
     let request_body = Request{
         version: "1",
         config,
-        changes
+        changes: &changes,
+        push_options: &get_push_options(),
     };
 
     client.post(hook.url.0.clone())
