@@ -100,13 +100,19 @@ fn invalid_reject<T: Display>(file_name: T) -> (web::Json<WebhookResponse>, Stat
     (responder, StatusCode::CONFLICT)
 }
 
+const DEFAULT_PORT: u16 = 8080;
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let env = Env::default()
         .default_filter_or("info");
     env_logger::init_from_env(env);
+    let listen_port = match env::var("LISTEN_PORT") {
+        Ok(s) => s.parse::<u16>().unwrap_or(DEFAULT_PORT),
+        Err(_) => DEFAULT_PORT
+    };
     HttpServer::new(|| App::new().service(validate))
-        .bind(("0.0.0.0", 8080))?
+        .bind(("0.0.0.0", listen_port))?
         .run()
         .await
 }
