@@ -1,12 +1,10 @@
-use crate::util::env_as;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
-enum GitlabId {
+pub enum GitlabId {
     #[serde(rename = "user")]
     User { id: u64 },
     #[serde(rename = "key")]
@@ -51,7 +49,7 @@ impl FromStr for GitlabId {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-enum GitlabProtocol {
+pub enum GitlabProtocol {
     #[serde(rename = "http")]
     HTTP,
     #[serde(rename = "ssh")]
@@ -96,40 +94,9 @@ impl FromStr for GitlabRepository {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct GitlabMetadata {
-    id: GitlabId,
-    project_path: String,
-    protocol: GitlabProtocol,
-    repository: GitlabRepository,
-    username: String,
-}
-
-pub fn get_gitlab_metadata() -> Option<GitlabMetadata> {
-    let id = match env_as::<GitlabId>("GL_ID") {
-        Some(v) => v,
-        None => return None,
-    };
-    let project_path = match env::var("GL_PROJECT_PATH").ok() {
-        Some(v) => v,
-        None => return None,
-    };
-    let protocol = match env_as::<GitlabProtocol>("GL_PROTOCOL") {
-        Some(v) => v,
-        None => return None,
-    };
-    let repository = match env_as::<GitlabRepository>("GL_REPOSITORY") {
-        Some(v) => v,
-        None => return None,
-    };
-    let username = match env::var("GL_USERNAME").ok() {
-        Some(v) => v,
-        None => return None,
-    };
-
-    Some(GitlabMetadata {
-        id,
-        project_path,
-        protocol,
-        repository,
-        username,
-    })
+    pub id: GitlabId,
+    pub project_path: String,
+    pub protocol: GitlabProtocol,
+    pub repository: GitlabRepository,
+    pub username: String,
 }

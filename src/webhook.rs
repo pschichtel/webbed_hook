@@ -4,11 +4,9 @@ use crate::configuration::Hook;
 use reqwest::redirect;
 use serde_json::Value;
 use std::time::Duration;
-use webbed_hook_core::gitlab::get_gitlab_metadata;
-use webbed_hook_core::util::env_as;
 use webbed_hook_core::webhook::{CertificateNonce, ChangeWithPatch, Metadata, PushSignature, PushSignatureStatus, WebhookRequest, WebhookResponse};
-
-
+use crate::gitlab::get_gitlab_metadata;
+use crate::util::env_as;
 
 fn get_nonce() -> Option<String> {
     env_as::<String>("GIT_PUSH_CERT_NONCE")

@@ -1,5 +1,7 @@
 mod configuration;
 mod webhook;
+mod util;
+mod gitlab;
 
 use webbed_hook_core::webhook::{ChangeWithPatch, WebhookResponse};
 use base64::prelude::BASE64_STANDARD;
