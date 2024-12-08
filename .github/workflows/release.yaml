@@ -25,5 +25,5 @@ jobs:
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           profile: 'release'
-          bin: 'webbed_hook'
+          bin: 'webbed_hook,webbed_hook_receiver'
           token: ${{ secrets.GITHUB_TOKEN }}

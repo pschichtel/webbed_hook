@@ -99,7 +99,7 @@ pub struct WebhookRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct WebhookResponse(Vec<String>);
+pub struct WebhookResponse(pub Vec<String>);
 
 impl Default for WebhookResponse {
     fn default() -> Self {

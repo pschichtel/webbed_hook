@@ -32,10 +32,12 @@ jobs:
           key: ${{ matrix.profile.name }}
 
       - name: Compile
-        run: cargo build --profile ${{ matrix.profile.name }} --quiet
+        run: cargo build --all --profile ${{ matrix.profile.name }} --quiet
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.profile.name }}
-          path: target/${{ matrix.profile.target_folder }}/webbed_hook
+          path: |
+            target/${{ matrix.profile.target_folder }}/webbed_hook
+            target/${{ matrix.profile.target_folder }}/webbed_hook_receiver

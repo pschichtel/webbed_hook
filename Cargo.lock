@@ -1183,16 +1183,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "receiver"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "serde",
- "serde_json",
- "webbed_hook_core",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1839,6 +1829,14 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "webbed_hook_receiver"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "webbed_hook_core",
 ]
 
 [[package]]

@@ -1,7 +1,7 @@
 mod configuration;
 mod webhook;
 
-use webbed_hook_core::webhook::ChangeWithPatch;
+use webbed_hook_core::webhook::{ChangeWithPatch, WebhookResponse};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use path_clean::PathClean;
@@ -124,7 +124,7 @@ fn main() {
         let with_patch = create_patches(changes);
 
         match perform_request(hook, with_patch) {
-            Ok(WebhookResult(success, messages)) => {
+            Ok(WebhookResult(success, WebhookResponse(messages))) => {
                 if success {
                     for message in messages {
                         println!("{}", message);
