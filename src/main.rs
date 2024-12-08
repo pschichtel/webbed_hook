@@ -42,6 +42,36 @@ where
         })
 }
 
+fn read_changes() -> Vec<Change> {
+    let stdin = std::io::stdin();
+    stdin.lock().lines()
+        .into_iter()
+        .filter_map(|line| line.ok())
+        .map(|line| {
+            let parts = line.split(' ').collect::<Vec<_>>();
+            let old_commit = parts[0].to_owned();
+            let new_commit = parts[1].to_owned();
+            Change {
+                old_commit,
+                new_commit,
+                ref_name: parts[2].to_owned(),
+            }
+        })
+        .collect::<Vec<Change>>()
+}
+
+fn create_patches(changes: Vec<Change>) -> Vec<ChangeWithPatch> {
+    changes.into_iter().map(|change| {
+        let patch = format_patch(&change.old_commit, &change.new_commit);
+        ChangeWithPatch {
+            old_commit: change.old_commit,
+            new_commit: change.new_commit,
+            ref_name: change.ref_name,
+            patch,
+        }
+    }).collect()
+}
+
 fn load_config_from_default_branch() -> Option<Configuration> {
     run_git_command(["show", "HEAD:hooks.json"])
         .and_then(|output| {
@@ -87,35 +117,13 @@ fn main() {
 
     let hook = config.select_hook();
     if let Some(hook) = hook {
-        let stdin = std::io::stdin();
-        let changes = stdin.lock().lines()
-            .into_iter()
-            .filter_map(|line| line.ok())
-            .map(|line| {
-                let parts = line.split(' ').collect::<Vec<_>>();
-                let old_commit = parts[0].to_owned();
-                let new_commit = parts[1].to_owned();
-                Change {
-                    old_commit,
-                    new_commit,
-                    ref_name: parts[2].to_owned(),
-                }
-            })
-            .collect::<Vec<Change>>();
+        let changes = read_changes();
 
         if !applies_to_changes(&hook, &changes) {
             exit(0);
         }
 
-        let with_patch = changes.into_iter().map(|change| {
-            let patch = format_patch(&change.old_commit, &change.new_commit);
-            ChangeWithPatch {
-                old_commit: change.old_commit,
-                new_commit: change.new_commit,
-                ref_name: change.ref_name,
-                patch,
-            }
-        }).collect();
+        let with_patch = create_patches(changes);
 
         match perform_request(&hook, with_patch) {
             Ok(WebhookResult(success, messages)) => {
