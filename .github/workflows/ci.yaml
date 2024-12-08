@@ -10,7 +10,10 @@ env:
 
 jobs:
   build:
-    name: Build
+    strategy:
+      matrix:
+        profile: [ 'dev', 'release' ]
+    name: 'Build ${{ matrix.version }}'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,7 +23,7 @@ jobs:
         run: rustup update
 
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
+        uses: Swatinem/rust-cache@v2
 
-      - name: Compile (rust-analyzer)
-        run: cargo build --quiet ${{ env.USE_SYSROOT_ABI }}
+      - name: Compile
+        run: cargo build --profile ${{ matrix.version }} --quiet
