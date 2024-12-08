@@ -1,4 +1,7 @@
-use crate::webhook::{perform_request, ChangeWithPatch, WebhookResult};
+mod configuration;
+mod webhook;
+
+use webbed_hook_core::webhook::ChangeWithPatch;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use path_clean::PathClean;
@@ -8,11 +11,7 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command, Output, Stdio};
 use crate::configuration::{Configuration, Hook};
-
-mod webhook;
-mod configuration;
-mod gitlab;
-mod util;
+use crate::webhook::{perform_request, WebhookResult};
 
 #[derive(Debug)]
 pub struct Change {
@@ -115,8 +114,7 @@ fn main() {
         Configuration::Version1(v1) => v1
     };
 
-    let hook = config.select_hook();
-    if let Some(hook) = hook {
+    if let Some(hook) = config.select_hook() {
         let changes = read_changes();
 
         if !applies_to_changes(&hook, &changes) {
@@ -125,7 +123,7 @@ fn main() {
 
         let with_patch = create_patches(changes);
 
-        match perform_request(&hook, with_patch) {
+        match perform_request(hook, with_patch) {
             Ok(WebhookResult(success, messages)) => {
                 if success {
                     for message in messages {

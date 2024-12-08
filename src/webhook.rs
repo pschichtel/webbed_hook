@@ -1,113 +1,14 @@
 use std::env;
 use std::fmt::Display;
-use std::str::FromStr;
 use crate::configuration::Hook;
 use reqwest::redirect;
-use serde::Serialize;
 use serde_json::Value;
 use std::time::Duration;
-use crate::gitlab::{get_gitlab_metadata, GitlabMetadata};
-use crate::util::env_as;
+use webbed_hook_core::gitlab::get_gitlab_metadata;
+use webbed_hook_core::util::env_as;
+use webbed_hook_core::webhook::{CertificateNonce, ChangeWithPatch, Metadata, PushSignature, PushSignatureStatus, Request};
 
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "kebab-case")]
-pub struct ChangeWithPatch {
-    pub old_commit: String,
-    pub new_commit: String,
-    pub ref_name: String,
-    pub patch: Option<String>,
-}
 
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "kebab-case")]
-#[serde(tag = "type")]
-pub enum Metadata {
-    #[serde(rename = "gitlab")]
-    GitLab(GitlabMetadata),
-
-    #[serde(rename = "none")]
-    None,
-}
-
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "kebab-case")]
-struct Request<'a> {
-    pub version: &'a str,
-    pub config: &'a Value,
-    pub changes: &'a Vec<ChangeWithPatch>,
-    pub push_options: &'a Vec<String>,
-    pub signature: Option<PushSignature>,
-    pub metadata: Metadata,
-}
-
-#[derive(Debug)]
-pub struct WebhookResult(pub bool, pub Vec<String>);
-
-fn get_push_options() -> Vec<String> {
-    let option_count_str = env_as("GIT_PUSH_OPTION_COUNT")
-        .unwrap_or(0u64);
-    if option_count_str == 0 {
-        return vec![];
-    }
-    (0..option_count_str).filter_map(|n| {
-        env::var(format!("GIT_PUSH_OPTION_{}", n)).ok()
-    }).collect()
-}
-
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "kebab-case")]
-pub enum PushSignatureStatus {
-    #[serde(rename = "good")]
-    Good,
-    #[serde(rename = "bad")]
-    Bad,
-    #[serde(rename = "unknown-validity")]
-    UnknownValidity,
-    #[serde(rename = "expired")]
-    Expired,
-    #[serde(rename = "expired-key")]
-    ExpiredKey,
-    #[serde(rename = "revoked-key")]
-    RevokedKey,
-    #[serde(rename = "cannot-check")]
-    CannotCheck,
-    #[serde(rename = "no-signature")]
-    NoSignature,
-}
-
-impl FromStr for PushSignatureStatus {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "G" => Ok(PushSignatureStatus::Good),
-            "B" => Ok(PushSignatureStatus::Bad),
-            "U" => Ok(PushSignatureStatus::UnknownValidity),
-            "X" => Ok(PushSignatureStatus::Expired),
-            "Y" => Ok(PushSignatureStatus::ExpiredKey),
-            "R" => Ok(PushSignatureStatus::RevokedKey),
-            "E" => Ok(PushSignatureStatus::CannotCheck),
-            "N" => Ok(PushSignatureStatus::NoSignature),
-            _ => Err(format!("Unknown signature status: {}", s)),
-        }
-    }
-}
-
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "kebab-case")]
-#[serde(tag = "type")]
-pub enum CertificateNonce {
-    #[serde(rename = "unsolicited")]
-    Unsolicited { nonce: String },
-    #[serde(rename = "missing")]
-    Missing,
-    #[serde(rename = "bad")]
-    Bad { nonce: String },
-    #[serde(rename = "ok")]
-    Ok { nonce: String },
-    #[serde(rename = "slop")]
-    Slop { nonce: String, stale_seconds: u32 },
-}
 
 fn get_nonce() -> Option<String> {
     env_as::<String>("GIT_PUSH_CERT_NONCE")
@@ -145,15 +46,6 @@ fn get_certificate_nonce() -> CertificateNonce {
         },
         _ => CertificateNonce::Missing
     }
-}
-
-#[derive(Serialize, Debug)]
-pub struct PushSignature {
-    certificate: String,
-    signer: String,
-    key: String,
-    status: PushSignatureStatus,
-    nonce: CertificateNonce,
 }
 
 fn get_push_signature() -> Option<PushSignature> {
@@ -208,10 +100,24 @@ impl Display for HookError {
     }
 }
 
+fn get_push_options() -> Vec<String> {
+    let option_count_str = env_as("GIT_PUSH_OPTION_COUNT")
+        .unwrap_or(0u64);
+    if option_count_str == 0 {
+        return vec![];
+    }
+    (0..option_count_str).filter_map(|n| {
+        env::var(format!("GIT_PUSH_OPTION_{}", n)).ok()
+    }).collect()
+}
+
 const MAX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+#[derive(Debug)]
+pub struct WebhookResult(pub bool, pub Vec<String>);
 
 pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, HookError> {
     let connect_timeout = hook.connect_timeout.unwrap_or(DEFAULT_CONNECT_TIMEOUT);
@@ -234,15 +140,15 @@ pub fn perform_request(hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<Web
         .build()
         .expect("Failed to build the client, this is a bug!");
     let config = match hook.config {
-        Some(ref c) => c,
-        None => &Value::Null,
+        Some(ref c) => c.clone(),
+        None => Value::Null,
     };
 
     let request_body = Request{
         version: "1",
         config,
-        changes: &changes,
-        push_options: &get_push_options(),
+        changes,
+        push_options: get_push_options(),
         signature: get_push_signature(),
         metadata: get_metadata(),
     };

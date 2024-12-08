@@ -1,10 +1,10 @@
 use crate::util::env_as;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 enum GitlabId {
     #[serde(rename = "user")]
@@ -50,7 +50,7 @@ impl FromStr for GitlabId {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 enum GitlabProtocol {
     #[serde(rename = "http")]
     HTTP,
@@ -73,7 +73,7 @@ impl FromStr for GitlabProtocol {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum GitlabRepository {
     #[serde(rename = "project")]
@@ -93,7 +93,7 @@ impl FromStr for GitlabRepository {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct GitlabMetadata {
     id: GitlabId,
