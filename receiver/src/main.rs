@@ -1,3 +1,4 @@
+use std::string::ToString;
 use actix_web::web;
 use actix_web::{post, App, HttpRequest, HttpServer, Responder};
 use webbed_hook_core::webhook::{WebhookRequest, WebhookResponse};
@@ -6,7 +7,7 @@ use webbed_hook_core::webhook::{WebhookRequest, WebhookResponse};
 async fn hello(req: HttpRequest, body: web::Json<WebhookRequest>) -> impl Responder {
     let payload = body.0;
     println!("REQ: {:?} with body: {:?}", req, payload);
-    web::Json(WebhookResponse::default())
+    web::Json(WebhookResponse(vec!["Received!".to_string()]))
 }
 
 #[actix_web::main]

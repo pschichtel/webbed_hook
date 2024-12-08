@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run receiver" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run --package receiver --bin receiver" />
+    <option name="command" value="run --package webbed_hook_receiver --bin webbed_hook_receiver" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />
