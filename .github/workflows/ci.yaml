@@ -25,6 +25,7 @@ jobs:
 
       - name: Install Rust toolchain
         run: |
+          sudo apt install -y musl-tools
           rustup update
           rustup target add x86_64-unknown-linux-musl
 
