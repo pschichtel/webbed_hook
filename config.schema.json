@@ -1,0 +1,105 @@
+{
+  "$id": "https://schich.tel/webbed_hook/config.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["1"]
+    },
+    "pre-receive": { "$ref": "#/$defs/hook" },
+    "post-receive": { "$ref": "#/$defs/hook" },
+    "update": { "$ref": "#/$defs/hook" }
+  },
+  "required": [
+    "version"
+  ],
+  "$defs": {
+    "hook": {
+      "type": "object",
+      "properties": {
+        "ref-selectors": {
+          "type": "array",
+          "minLength": 1,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["tag"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "type",
+                  "name"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["branch"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "type",
+                  "name"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["ref-regex"]
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "type",
+                  "pattern"
+                ]
+              }
+            ]
+          }
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "config": {
+          "type": ["object", "array", "number", "integer", "boolean", "null"]
+        },
+        "reject-on-error": {
+          "type": "boolean"
+        },
+        "request-timeout": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "connect-timeout": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "ref-selectors",
+        "url"
+      ]
+    }
+  }
+}
