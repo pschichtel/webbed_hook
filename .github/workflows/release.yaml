@@ -36,5 +36,5 @@ jobs:
           target: x86_64-unknown-linux-musl
           bin: ${{ matrix.artifact.bin }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          archive: webbed_hook
+          archive: ${{ matrix.artifact.bin }}
           manifest-path: ${{ matrix.artifact.manifest }}
