@@ -28,3 +28,4 @@ jobs:
           target: x86_64-unknown-linux-musl
           bin: 'webbed_hook,webbed_hook_receiver'
           token: ${{ secrets.GITHUB_TOKEN }}
+          archive: webbed_hook
