@@ -18,6 +18,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   upload-assets:
+    strategy:
+      matrix:
+        artifact:
+          - bin: 'webbed_hook'
+            manifest: 'Cargo.toml'
+          - bin: 'webbed_hook_receiver'
+            manifest: 'receiver/Cargo.toml'
+    name: Upload ${{ matrix.artifact.bin }}
     needs: create-release
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +34,7 @@ jobs:
         with:
           profile: 'release'
           target: x86_64-unknown-linux-musl
-          bin: 'webbed_hook,webbed_hook_receiver'
+          bin: ${{ matrix.artifact.bin }}
           token: ${{ secrets.GITHUB_TOKEN }}
           archive: webbed_hook
+          manifest-path: ${{ matrix.artifact.manifest }}
