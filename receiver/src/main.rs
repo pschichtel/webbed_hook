@@ -59,13 +59,15 @@ async fn validate(req: HttpRequest, body: web::Json<WebhookRequest>) -> impl Res
     }
 
     for file in patch.files() {
-        let source = &file.source_file[2..];
-        let target = &file.target_file[2..];
-        if file_matches(&restricted_regex_pattern, source) {
-            return invalid_reject(source)
+        if let Some(source) = &file.source_file.strip_prefix("a/") {
+            if file_matches(&restricted_regex_pattern, source) {
+                return invalid_reject(source)
+            }
         }
-        if file_matches(&restricted_regex_pattern, target) {
-            return invalid_reject(target)
+        if let Some(target) = &file.target_file.strip_prefix("b/") {
+            if file_matches(&restricted_regex_pattern, target) {
+                return invalid_reject(target)
+            }
         }
     }
 

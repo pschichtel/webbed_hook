@@ -32,3 +32,28 @@ pub fn get_gitlab_metadata() -> Option<GitlabMetadata> {
         username,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use webbed_hook_core::gitlab::GitlabProtocol::SSH;
+    use super::*;
+
+    #[test]
+    fn test_add() {
+        env::set_var("GL_USERNAME", "some-user");
+        env::set_var("GL_ID", "key-123123");
+        env::set_var("GL_PROJECT_PATH", "some-group/some-project");
+        env::set_var("GL_REPOSITORY", "project-456456");
+        env::set_var("GL_PROTOCOL", "ssh");
+
+        let expected = GitlabMetadata {
+            id: GitlabId::Key { id: 123123 },
+            project_path: "some-group/some-project".to_string(),
+            protocol: SSH,
+            repository: GitlabRepository::ProjectId { id: 456456 },
+            username: "some-user".to_string(),
+        };
+        assert_eq!(get_gitlab_metadata(), Some(expected));
+    }
+
+}

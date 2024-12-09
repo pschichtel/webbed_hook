@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 #[serde(tag = "type")]
 pub enum GitlabId {
     #[serde(rename = "user")]
@@ -34,13 +34,13 @@ impl FromStr for GitlabId {
     type Err = GitlabParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("user-") {
-            return s.parse::<u64>()
+        if let Some(suffix) = s.strip_prefix("user-") {
+            return suffix.parse::<u64>()
                 .map(|id| GitlabId::User{id})
                 .map_err(|e| GitlabParseError::ParseIntError(e))
         }
-        if s.starts_with("key-") {
-            return s.parse::<u64>()
+        if let Some(suffix) = s.strip_prefix("key-") {
+            return suffix.parse::<u64>()
                 .map(|id| GitlabId::Key{id})
                 .map_err(|e| GitlabParseError::ParseIntError(e))
         }
@@ -48,7 +48,7 @@ impl FromStr for GitlabId {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub enum GitlabProtocol {
     #[serde(rename = "http")]
     HTTP,
@@ -71,7 +71,7 @@ impl FromStr for GitlabProtocol {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 #[serde(tag = "type")]
 pub enum GitlabRepository {
     #[serde(rename = "project")]
@@ -82,8 +82,8 @@ impl FromStr for GitlabRepository {
     type Err = GitlabParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("project-") {
-            return s.parse::<u64>()
+        if let Some(suffix) = s.strip_prefix("project-") {
+            return suffix.parse::<u64>()
                 .map(|id| GitlabRepository::ProjectId{id})
                 .map_err(|e| GitlabParseError::ParseIntError(e))
         }
@@ -91,7 +91,7 @@ impl FromStr for GitlabRepository {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct GitlabMetadata {
     pub id: GitlabId,
