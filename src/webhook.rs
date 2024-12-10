@@ -151,6 +151,12 @@ pub fn perform_request(default_branch: String, hook: &Hook, changes: Vec<ChangeW
         signature: get_push_signature(),
         metadata: get_metadata(),
     };
+    
+    if let Some(ref greetings) = hook.greeting_messages {
+        for greeting in greetings {
+            println!("{}", greeting);
+        }
+    }
 
     client.post(hook.url.0.clone())
         .json(&request_body)

@@ -94,6 +94,13 @@
         "connect-timeout": {
           "type": "integer",
           "minimum": 0
+        },
+        "greeting-messages": {
+          "type": "array",
+          "minLength": 1,
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [

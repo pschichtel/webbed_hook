@@ -183,6 +183,7 @@ pub struct Hook {
     pub reject_on_error: Option<bool>,
     pub request_timeout: Option<Duration>,
     pub connect_timeout: Option<Duration>,
+    pub greeting_messages: Option<NonEmpty<String>>,
 }
 
 impl Hook {
