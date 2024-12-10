@@ -12,7 +12,7 @@ use std::ffi::OsStr;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command, Output, Stdio};
-use crate::configuration::{Configuration, Hook};
+use crate::configuration::{Configuration, Hook, HookType};
 use crate::webhook::{perform_request, WebhookResult};
 
 #[derive(Debug)]
@@ -43,9 +43,9 @@ where
         })
 }
 
-fn read_changes() -> Vec<Change> {
+fn read_changes_from_stdin() -> Option<Vec<Change>> {
     let stdin = std::io::stdin();
-    stdin.lock().lines()
+    let changes = stdin.lock().lines()
         .into_iter()
         .filter_map(|line| line.ok())
         .map(|line| {
@@ -58,7 +58,36 @@ fn read_changes() -> Vec<Change> {
                 ref_name: parts[2].to_owned(),
             }
         })
-        .collect::<Vec<Change>>()
+        .collect::<Vec<Change>>();
+    if changes.is_empty() {
+        None
+    } else {
+        Some(changes)
+    }
+}
+
+fn read_change_from_args() -> Option<Change> {
+    let mut args = env::args();
+    let ref_name = args.next();
+    let old_commit = args.next();
+    let new_commit = args.next();
+    
+    match (ref_name, old_commit, new_commit) {
+        (Some(ref_name), Some(old_commit), Some(new_commit)) => Some(Change {
+            ref_name,
+            old_commit,
+            new_commit,
+        }),
+        _ => None,
+    }
+}
+
+fn get_changes(hook_type: HookType) -> Option<Vec<Change>> {
+    match hook_type {
+        HookType::PreReceive => read_changes_from_stdin(),
+        HookType::Update => read_change_from_args().map(|c| vec![c]),
+        HookType::PostReceive => read_changes_from_stdin(),
+    }
 }
 
 fn create_patches(changes: Vec<Change>) -> Vec<ChangeWithPatch> {
@@ -126,8 +155,13 @@ fn main() {
         Configuration::Version1(v1) => v1
     };
 
-    if let Some(hook) = config.select_hook() {
-        let changes = read_changes();
+    if let Some((hook, hook_type)) = config.select_hook() {
+        let changes = match get_changes(hook_type) {
+            Some(changes) => changes,
+            None => {
+                exit(0);
+            }
+        };
 
         if !applies_to_changes(&hook, &changes) {
             exit(0);

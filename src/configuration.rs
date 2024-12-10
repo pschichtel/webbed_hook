@@ -174,6 +174,12 @@ pub enum RefSelector {
     }
 }
 
+pub enum HookType {
+    PreReceive,
+    Update,
+    PostReceive,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Hook {
@@ -230,10 +236,10 @@ pub enum Configuration {
 }
 
 impl ConfigurationVersion1 {
-    pub fn select_hook(&self) -> &Option<Hook> {
+    pub fn select_hook(&self) -> Option<(&Hook, HookType)> {
         let exe_path = match get_absolute_program_path() {
             Ok(path) => path,
-            Err(_) => return &None
+            Err(_) => return None
         };
         let by_name = hook_by_executable_name(&self, &exe_path);
         if by_name.is_some() {
@@ -245,33 +251,44 @@ impl ConfigurationVersion1 {
             return by_parent;
         }
 
-        &None
+        None
     }
 }
 
-fn hook_by_executable_name<'a>(configuration: &'a ConfigurationVersion1, path: &Path) -> &'a Option<Hook> {
+fn hook_by_executable_name<'a>(configuration: &'a ConfigurationVersion1, path: &Path) -> Option<(&'a Hook, HookType)> {
     match path.file_name().and_then(|f| f.to_str()) {
         Some(name) => hook_by_name(configuration, name),
-        None => &None
+        None => None
     }
 }
 
-fn hook_by_parent_dir_name<'a>(configuration: &'a ConfigurationVersion1, path: &Path) -> &'a Option<Hook> {
+fn hook_by_parent_dir_name<'a>(configuration: &'a ConfigurationVersion1, path: &Path) -> Option<(&'a Hook, HookType)> {
     match path.parent().and_then(|f| f.file_name()).and_then(|f| f.to_str()) {
         Some(name) => hook_by_name(configuration, name.trim_end_matches(".d")),
-        None => &None
+        None => None
     }
 }
 
-fn hook_by_name<'a>(configuration: &'a ConfigurationVersion1, name: &str) -> &'a Option<Hook> {
+fn hook_by_name<'a>(configuration: &'a ConfigurationVersion1, name: &str) -> Option<(&'a Hook, HookType)> {
     match name {
         "pre-receive" => {
-            &configuration.pre_receive
+            match &configuration.pre_receive {
+                Some(ref h) => Some((h, HookType::PreReceive)),
+                None => None
+            }
+        },
+        "update" => {
+            match &configuration.update {
+                Some(ref h) => Some((h, HookType::Update)),
+                None => None
+            }
         },
         "post-receive" => {
-            &configuration.post_receive
+            match &configuration.post_receive {
+                Some(ref h) => Some((h, HookType::PostReceive)),
+                None => None
+            }
         },
-        "update" => &configuration.update,
-        _ => &None,
+        _ => None,
     }
 }
