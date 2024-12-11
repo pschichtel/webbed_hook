@@ -76,6 +76,9 @@
               "new-commit": {
                 "type": "string"
               },
+              "merge-base": {
+                "type": "string"
+              },
               "force": {
                 "type": "boolean"
               },

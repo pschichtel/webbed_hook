@@ -43,22 +43,6 @@ where
         })
 }
 
-fn run_git_command_no_output<I, S>(args: I) -> bool
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    Command::new("git")
-        .args(args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null())
-        .status()
-        .ok()
-        .map(|status| status.success())
-        .unwrap_or(false)
-}
-
 fn read_changes_from_stdin() -> Option<Vec<ChangeLine>> {
     let stdin = std::io::stdin();
     let changes = stdin.lock().lines()
@@ -117,11 +101,16 @@ fn resolve_change(line: ChangeLine) -> Option<Change> {
     match (old_exists, new_exists) {
         (true, true) => {
             let patch = format_patch(&line.old_commit, &line.new_commit);
-            let force = !is_ancestor(&line.old_commit, &line.new_commit);
+            let merge_base = get_merge_base(&line.old_commit, &line.new_commit);
+            let force = match merge_base {
+                Some(ref base) => base != &line.old_commit,
+                None => true
+            };
             Some(Change::UpdateRef {
                 name: line.ref_name,
                 old_commit: line.old_commit,
                 new_commit: line.new_commit,
+                merge_base,
                 force,
                 patch,
             })
@@ -146,7 +135,7 @@ fn resolve_changes(changes: Vec<ChangeLine>) -> Vec<Change> {
 fn load_config_from_default_branch() -> Option<Configuration> {
     run_git_command(["show", "HEAD:hooks.json"])
         .and_then(|output| {
-            return serde_json::from_slice::<Configuration>(output.stdout.as_slice()).ok()
+            serde_json::from_slice::<Configuration>(output.stdout.as_slice()).ok()
         })
 }
 
@@ -157,8 +146,11 @@ fn format_patch(old_commit: &str, new_commit: &str) -> Option<String> {
         })
 }
 
-fn is_ancestor(old_commit: &str, new_commit: &str) -> bool {
-    run_git_command_no_output(vec!["merge-base", "--is-ancestor", old_commit, new_commit])
+fn get_merge_base(old_commit: &str, new_commit: &str) -> Option<String> {
+    run_git_command(vec!["merge-base", old_commit, new_commit])
+        .and_then(|output| {
+            String::from_utf8(output.stdout).map(|s| s.as_str().trim().to_string()).ok()
+        })
 }
 
 fn get_default_branch() -> Option<String> {

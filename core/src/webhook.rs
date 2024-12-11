@@ -22,6 +22,7 @@ pub enum Change {
         name: String,
         old_commit: String,
         new_commit: String,
+        merge_base: Option<String>,
         force: bool,
         patch: Option<String>,
     }
