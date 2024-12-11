@@ -4,7 +4,7 @@ use crate::configuration::Hook;
 use reqwest::redirect;
 use serde_json::Value;
 use std::time::Duration;
-use webbed_hook_core::webhook::{CertificateNonce, ChangeWithPatch, Metadata, PushSignature, PushSignatureStatus, WebhookRequest, WebhookResponse};
+use webbed_hook_core::webhook::{CertificateNonce, Change, Metadata, PushSignature, PushSignatureStatus, WebhookRequest, WebhookResponse};
 use crate::gitlab::get_gitlab_metadata;
 use crate::util::env_as;
 
@@ -117,7 +117,7 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 #[derive(Debug)]
 pub struct WebhookResult(pub bool, pub WebhookResponse);
 
-pub fn perform_request(default_branch: String, hook: &Hook, changes: Vec<ChangeWithPatch>) -> Result<WebhookResult, HookError> {
+pub fn perform_request(default_branch: String, hook: &Hook, changes: Vec<Change>) -> Result<WebhookResult, HookError> {
     let connect_timeout = hook.connect_timeout.unwrap_or(DEFAULT_CONNECT_TIMEOUT);
     if connect_timeout > MAX_CONNECT_TIMEOUT {
         return Err(HookError::Validation(format!("Connect timeout of {}ms is longer than maximum value of {}ms", connect_timeout.as_millis(), &MAX_CONNECT_TIMEOUT.as_millis())))

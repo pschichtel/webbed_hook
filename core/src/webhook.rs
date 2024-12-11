@@ -3,14 +3,30 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 #[serde(rename_all = "kebab-case")]
-pub struct ChangeWithPatch {
-    pub old_commit: String,
-    pub new_commit: String,
-    pub ref_name: String,
-    pub patch: Option<String>,
+#[serde(tag = "type")]
+pub enum Change {
+    #[serde(rename = "add")]
+    AddRef {
+        name: String,
+        commit: String,
+    },
+    #[serde(rename = "remove")]
+    RemoveRef {
+        name: String,
+        commit: String,
+    },
+    #[serde(rename = "update")]
+    UpdateRef {
+        name: String,
+        old_commit: String,
+        new_commit: String,
+        force: bool,
+        patch: Option<String>,
+    }
 }
+
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -93,7 +109,7 @@ pub struct WebhookRequest {
     pub version: String,
     pub default_branch: String,
     pub config: Value,
-    pub changes: Vec<ChangeWithPatch>,
+    pub changes: Vec<Change>,
     pub push_options: Vec<String>,
     pub signature: Option<PushSignature>,
     pub metadata: Metadata,

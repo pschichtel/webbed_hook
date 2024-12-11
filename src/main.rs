@@ -3,7 +3,7 @@ mod webhook;
 mod util;
 mod gitlab;
 
-use webbed_hook_core::webhook::{ChangeWithPatch, WebhookResponse};
+use webbed_hook_core::webhook::{Change, WebhookResponse};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use path_clean::PathClean;
@@ -16,7 +16,7 @@ use crate::configuration::{Configuration, Hook, HookType};
 use crate::webhook::{perform_request, WebhookResult};
 
 #[derive(Debug)]
-pub struct Change {
+pub struct ChangeLine {
     pub old_commit: String,
     pub new_commit: String,
     pub ref_name: String,
@@ -43,7 +43,23 @@ where
         })
 }
 
-fn read_changes_from_stdin() -> Option<Vec<Change>> {
+fn run_git_command_no_output<I, S>(args: I) -> bool
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    Command::new("git")
+        .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .ok()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn read_changes_from_stdin() -> Option<Vec<ChangeLine>> {
     let stdin = std::io::stdin();
     let changes = stdin.lock().lines()
         .into_iter()
@@ -52,13 +68,13 @@ fn read_changes_from_stdin() -> Option<Vec<Change>> {
             let parts = line.split(' ').collect::<Vec<_>>();
             let old_commit = parts[0].to_owned();
             let new_commit = parts[1].to_owned();
-            Change {
+            ChangeLine {
                 old_commit,
                 new_commit,
                 ref_name: parts[2].to_owned(),
             }
         })
-        .collect::<Vec<Change>>();
+        .collect::<Vec<ChangeLine>>();
     if changes.is_empty() {
         None
     } else {
@@ -66,14 +82,14 @@ fn read_changes_from_stdin() -> Option<Vec<Change>> {
     }
 }
 
-fn read_change_from_args() -> Option<Change> {
+fn read_change_from_args() -> Option<ChangeLine> {
     let mut args = env::args();
     let ref_name = args.next();
     let old_commit = args.next();
     let new_commit = args.next();
-    
+
     match (ref_name, old_commit, new_commit) {
-        (Some(ref_name), Some(old_commit), Some(new_commit)) => Some(Change {
+        (Some(ref_name), Some(old_commit), Some(new_commit)) => Some(ChangeLine {
             ref_name,
             old_commit,
             new_commit,
@@ -82,7 +98,7 @@ fn read_change_from_args() -> Option<Change> {
     }
 }
 
-fn get_changes(hook_type: HookType) -> Option<Vec<Change>> {
+fn get_changes(hook_type: HookType) -> Option<Vec<ChangeLine>> {
     match hook_type {
         HookType::PreReceive => read_changes_from_stdin(),
         HookType::Update => read_change_from_args().map(|c| vec![c]),
@@ -90,16 +106,41 @@ fn get_changes(hook_type: HookType) -> Option<Vec<Change>> {
     }
 }
 
-fn create_patches(changes: Vec<Change>) -> Vec<ChangeWithPatch> {
-    changes.into_iter().map(|change| {
-        let patch = format_patch(&change.old_commit, &change.new_commit);
-        ChangeWithPatch {
-            old_commit: change.old_commit,
-            new_commit: change.new_commit,
-            ref_name: change.ref_name,
-            patch,
-        }
-    }).collect()
+fn is_hash_all_zeros(hash: &str) -> bool {
+    hash.chars().all(|c| c == '0')
+}
+
+fn resolve_change(line: ChangeLine) -> Option<Change> {
+    let old_exists = !is_hash_all_zeros(&line.old_commit);
+    let new_exists = !is_hash_all_zeros(&line.new_commit);
+
+    match (old_exists, new_exists) {
+        (true, true) => {
+            let patch = format_patch(&line.old_commit, &line.new_commit);
+            let force = !is_ancestor(&line.old_commit, &line.new_commit);
+            Some(Change::UpdateRef {
+                name: line.ref_name,
+                old_commit: line.old_commit,
+                new_commit: line.new_commit,
+                force,
+                patch,
+            })
+        },
+        (true, false) => Some(Change::RemoveRef {
+            name: line.ref_name,
+            commit: line.old_commit,
+        }),
+        (false, true) => Some(Change::AddRef {
+            name: line.ref_name,
+            commit: line.new_commit,
+        }),
+        (false, false) => None
+    }
+
+}
+
+fn resolve_changes(changes: Vec<ChangeLine>) -> Vec<Change> {
+    changes.into_iter().filter_map(resolve_change).collect()
 }
 
 fn load_config_from_default_branch() -> Option<Configuration> {
@@ -114,6 +155,10 @@ fn format_patch(old_commit: &str, new_commit: &str) -> Option<String> {
         .map(|output| {
             BASE64_STANDARD.encode(output.stdout.as_slice())
         })
+}
+
+fn is_ancestor(old_commit: &str, new_commit: &str) -> bool {
+    run_git_command_no_output(vec!["merge-base", "--is-ancestor", old_commit, new_commit])
 }
 
 fn get_default_branch() -> Option<String> {
@@ -132,7 +177,7 @@ pub fn get_absolute_program_path() -> Result<PathBuf, std::io::Error> {
     }.map(|p| p.clean())
 }
 
-fn applies_to_changes(hook: &Hook, changes: &Vec<Change>) -> bool {
+fn applies_to_changes(hook: &Hook, changes: &Vec<ChangeLine>) -> bool {
     for change in changes {
         if hook.applies_to(change.ref_name.as_str()) {
             return true;
@@ -167,7 +212,7 @@ fn main() {
             exit(0);
         }
 
-        let with_patch = create_patches(changes);
+        let with_patch = resolve_changes(changes);
 
         match perform_request(default_branch, hook, with_patch) {
             Ok(WebhookResult(success, WebhookResponse(messages))) => {

@@ -10,13 +10,16 @@ use env_logger::Env;
 use log::info;
 use regex::Regex;
 use unidiff::PatchSet;
-use webbed_hook_core::webhook::{ChangeWithPatch, WebhookRequest, WebhookResponse};
+use webbed_hook_core::webhook::{Change, WebhookRequest, WebhookResponse};
 
-fn find_default_branch_change<'a>(branch_name: &'a str, changes: &'a Vec<ChangeWithPatch>) -> Option<&'a ChangeWithPatch> {
-    let ref_name = format!("refs/heads/{}", branch_name);
+fn find_default_branch_change<'a>(branch_name: &'a str, changes: &'a Vec<Change>) -> Option<&'a Change> {
+    let ref_name = &format!("refs/heads/{}", branch_name);
     for change in changes {
-        if change.ref_name == ref_name {
-            return Some(change);
+        match change {
+            Change::AddRef { name, .. } if name == ref_name => return Some(change),
+            Change::RemoveRef { name, .. } if name == ref_name => return Some(change),
+            Change::UpdateRef { name, .. } if name == ref_name => return Some(change),
+            _ => {}
         }
     }
 
@@ -28,12 +31,12 @@ async fn validate(req: HttpRequest, body: web::Json<WebhookRequest>) -> impl Res
     let payload = body.0;
     info!("request: {:?} with body: {:?}", req, payload);
 
-    let default_branch_change = match find_default_branch_change(&payload.default_branch, &payload.changes) {
-        Some(change) => change,
-        None => return accept(format!("no change to {}", payload.default_branch).as_str()),
+    let patch = match find_default_branch_change(&payload.default_branch, &payload.changes) {
+        Some(Change::UpdateRef { patch, .. }) => patch,
+        _ => return accept(format!("no change to {}", payload.default_branch).as_str()),
     };
 
-    let encoded_patch = match default_branch_change.patch {
+    let encoded_patch = match patch {
         Some(ref patch) => patch,
         None => return accept("no files changed!"),
     };
