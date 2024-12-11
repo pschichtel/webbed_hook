@@ -30,17 +30,17 @@ async fn validate(req: HttpRequest, body: web::Json<WebhookRequest>) -> impl Res
 
     let default_branch_change = match find_default_branch_change(&payload.default_branch, &payload.changes) {
         Some(change) => change,
-        None => return accept(format!("accepted: no change to {}", payload.default_branch).as_str()),
+        None => return accept(format!("no change to {}", payload.default_branch).as_str()),
     };
 
     let encoded_patch = match default_branch_change.patch {
         Some(ref patch) => patch,
-        None => return accept("accepted: no files changed!"),
+        None => return accept("no files changed!"),
     };
 
     let restrict_glob_pattern = match env::var("RESTRICT_GLOB_PATTERN") {
         Ok(pattern) => pattern,
-        Err(_) => return accept("accepted: not restricting file changes"),
+        Err(_) => return accept("not restricting file changes"),
     };
 
     let restricted_regex_pattern = Regex::new(format!("^{}$", restrict_glob_pattern).as_str())
@@ -85,7 +85,7 @@ fn accept_empty() -> (web::Json<WebhookResponse>, StatusCode) {
 }
 
 fn accept<T: Display>(msg: T) -> (web::Json<WebhookResponse>, StatusCode) {
-    let response = WebhookResponse(vec![format!("rejected: {}", msg)]);
+    let response = WebhookResponse(vec![format!("accepted: {}", msg)]);
     let responder = web::Json(response);
     (responder, StatusCode::OK)
 }
