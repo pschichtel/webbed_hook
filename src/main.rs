@@ -94,13 +94,17 @@ fn is_hash_all_zeros(hash: &str) -> bool {
     hash.chars().all(|c| c == '0')
 }
 
-fn resolve_change(line: ChangeLine) -> Option<Change> {
+fn resolve_change(line: ChangeLine, hook: &Hook) -> Option<Change> {
     let old_exists = !is_hash_all_zeros(&line.old_commit);
     let new_exists = !is_hash_all_zeros(&line.new_commit);
 
     match (old_exists, new_exists) {
         (true, true) => {
-            let patch = format_patch(&line.old_commit, &line.new_commit);
+            let patch = if hook.include_patch.unwrap_or(true) {
+                format_patch(&line.old_commit, &line.new_commit)
+            } else { 
+                None
+            };
             let merge_base = get_merge_base(&line.old_commit, &line.new_commit);
             let force = match merge_base {
                 Some(ref base) => base != &line.old_commit,
@@ -128,8 +132,10 @@ fn resolve_change(line: ChangeLine) -> Option<Change> {
 
 }
 
-fn resolve_changes(changes: Vec<ChangeLine>) -> Vec<Change> {
-    changes.into_iter().filter_map(resolve_change).collect()
+fn resolve_changes(changes: Vec<ChangeLine>, hook: &Hook) -> Vec<Change> {
+    changes.into_iter()
+        .filter_map(|line| resolve_change(line, hook))
+        .collect()
 }
 
 fn load_config_from_default_branch() -> Option<Configuration> {
@@ -204,9 +210,9 @@ fn main() {
             exit(0);
         }
 
-        let with_patch = resolve_changes(changes);
+        let resolved_changes = resolve_changes(changes, hook);
 
-        match perform_request(default_branch, hook, with_patch) {
+        match perform_request(default_branch, hook, resolved_changes) {
             Ok(WebhookResult(success, WebhookResponse(messages))) => {
                 if success {
                     for message in messages {
