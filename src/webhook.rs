@@ -1,4 +1,3 @@
-use std::env;
 use std::fmt::Display;
 use crate::configuration::Hook;
 use reqwest::redirect;
@@ -98,17 +97,6 @@ impl Display for HookError {
     }
 }
 
-fn get_push_options() -> Vec<String> {
-    let option_count_str = env_as("GIT_PUSH_OPTION_COUNT")
-        .unwrap_or(0u64);
-    if option_count_str == 0 {
-        return vec![];
-    }
-    (0..option_count_str).filter_map(|n| {
-        env::var(format!("GIT_PUSH_OPTION_{}", n)).ok()
-    }).collect()
-}
-
 const MAX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
@@ -117,7 +105,7 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 #[derive(Debug)]
 pub struct WebhookResult(pub bool, pub WebhookResponse);
 
-pub fn perform_request(default_branch: String, hook: &Hook, changes: Vec<Change>) -> Result<WebhookResult, HookError> {
+pub fn perform_request(default_branch: String, push_options: Vec<String>, hook: &Hook, changes: Vec<Change>) -> Result<WebhookResult, HookError> {
     let connect_timeout = hook.connect_timeout.unwrap_or(DEFAULT_CONNECT_TIMEOUT);
     if connect_timeout > MAX_CONNECT_TIMEOUT {
         return Err(HookError::Validation(format!("Connect timeout of {}ms is longer than maximum value of {}ms", connect_timeout.as_millis(), &MAX_CONNECT_TIMEOUT.as_millis())))
@@ -147,7 +135,7 @@ pub fn perform_request(default_branch: String, hook: &Hook, changes: Vec<Change>
         default_branch: default_branch.to_string(),
         config,
         changes,
-        push_options: get_push_options(),
+        push_options,
         signature: get_push_signature(),
         metadata: get_metadata(),
     };

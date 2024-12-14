@@ -4,7 +4,7 @@ mod util;
 mod gitlab;
 mod git;
 
-use crate::configuration::{Configuration, Hook, HookType};
+use crate::configuration::{Configuration, Hook, HookBypass, HookType};
 use crate::git::{format_patch, get_default_branch, git_log_for_range, git_log_limited, merge_base, load_config_from_default_branch};
 use crate::webhook::{perform_request, WebhookResult};
 use path_clean::PathClean;
@@ -13,6 +13,7 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use webbed_hook_core::webhook::{Change, WebhookResponse};
+use crate::util::env_as;
 
 #[derive(Debug)]
 pub struct ChangeLine {
@@ -144,6 +145,30 @@ fn applies_to_changes(hook: &Hook, changes: &Vec<ChangeLine>) -> bool {
     false
 }
 
+fn get_push_options() -> Vec<String> {
+    let option_count_str = env_as("GIT_PUSH_OPTION_COUNT")
+        .unwrap_or(0u64);
+    if option_count_str == 0 {
+        return vec![];
+    }
+    (0..option_count_str).filter_map(|n| {
+        env::var(format!("GIT_PUSH_OPTION_{}", n)).ok()
+    }).collect()
+}
+
+fn attempt_bypass(options: &Vec<String>, bypass: &Option<HookBypass>) {
+    if let Some(ref bypass) = bypass {
+        if options.contains(&bypass.push_option) {
+            if let Some(ref messages) = bypass.messages {
+                for line in messages {
+                    println!("{}", line)
+                }
+            }
+            exit(0)
+        }
+    }
+}
+
 fn main() {
     let default_branch = match get_default_branch() {
         Some(branch) => branch,
@@ -158,7 +183,12 @@ fn main() {
         Configuration::Version1(v1) => v1
     };
 
+    let push_options = get_push_options();
+    attempt_bypass(&push_options, &config.bypass);
+
     if let Some((hook, hook_type)) = config.select_hook() {
+        attempt_bypass(&push_options, &hook.bypass);
+        
         let changes = match get_changes(hook_type) {
             Some(changes) => changes,
             None => {
@@ -172,7 +202,7 @@ fn main() {
 
         let resolved_changes = resolve_changes(changes, hook);
 
-        match perform_request(default_branch, hook, resolved_changes) {
+        match perform_request(default_branch, push_options, hook, resolved_changes) {
             Ok(WebhookResult(success, WebhookResponse(messages))) => {
                 if success {
                     for message in messages {

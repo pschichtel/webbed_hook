@@ -182,6 +182,13 @@ pub enum HookType {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+pub struct HookBypass {
+    pub push_option: String,
+    pub messages: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct Hook {
     pub ref_selectors: NonEmpty<RefSelector>,
     pub url: URL,
@@ -192,6 +199,7 @@ pub struct Hook {
     pub greeting_messages: Option<NonEmpty<String>>,
     pub include_patch: Option<bool>,
     pub include_log: Option<bool>,
+    pub bypass: Option<HookBypass>,
 }
 
 impl Hook {
@@ -224,9 +232,10 @@ impl Hook {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigurationVersion1 {
-    pre_receive: Option<Hook>,
-    post_receive: Option<Hook>,
-    update: Option<Hook>,
+    pub pre_receive: Option<Hook>,
+    pub post_receive: Option<Hook>,
+    pub update: Option<Hook>,
+    pub bypass: Option<HookBypass>,
 }
 
 #[derive(Debug, Deserialize)]

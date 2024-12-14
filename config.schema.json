@@ -9,12 +9,29 @@
     },
     "pre-receive": { "$ref": "#/$defs/hook" },
     "post-receive": { "$ref": "#/$defs/hook" },
-    "update": { "$ref": "#/$defs/hook" }
+    "update": { "$ref": "#/$defs/hook" },
+    "bypass": { "$ref": "#/$defs/by-pass" }
   },
   "required": [
     "version"
   ],
   "$defs": {
+    "by-pass": {
+      "type": "object",
+      "properties": {
+        "push-option": {
+          "type": "string",
+          "minLength": 1
+        },
+        "messages": {
+          "type": "array",
+          "minLength": 0,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "hook": {
       "type": "object",
       "properties": {
@@ -107,7 +124,8 @@
         },
         "include-log": {
           "type": "boolean"
-        }
+        },
+        "bypass": { "$ref": "#/$defs/by-pass" }
       },
       "required": [
         "ref-selectors",
