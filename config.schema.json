@@ -101,6 +101,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "include-patch": {
+          "type": "boolean"
         }
       },
       "required": [
