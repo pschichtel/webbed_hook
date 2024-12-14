@@ -4,8 +4,6 @@ use std::fmt::Display;
 use actix_web::web;
 use actix_web::{post, App, HttpRequest, HttpServer, Responder};
 use actix_web::http::StatusCode;
-use base64::Engine;
-use base64::prelude::BASE64_STANDARD;
 use env_logger::Env;
 use log::info;
 use regex::Regex;
@@ -36,7 +34,7 @@ async fn validate(req: HttpRequest, body: web::Json<WebhookRequest>) -> impl Res
         _ => return accept(format!("no change to {}", payload.default_branch).as_str()),
     };
 
-    let encoded_patch = match patch {
+    let patch_str = match patch {
         Some(ref patch) => patch,
         None => return accept("no files changed!"),
     };
@@ -49,15 +47,8 @@ async fn validate(req: HttpRequest, body: web::Json<WebhookRequest>) -> impl Res
     let restricted_regex_pattern = Regex::new(format!("^{}$", restrict_glob_pattern).as_str())
         .expect("glob pattern should compile as a regex after translation");
 
-    let patch_bytes = match BASE64_STANDARD.decode(encoded_patch.as_str()) {
-        Ok(patch) => patch,
-        Err(err) => {
-            return error_reject("invalid base64 patch", err);
-        }
-    };
-
     let mut patch = PatchSet::new();
-    if let Err(err) = patch.parse_bytes(patch_bytes.as_slice()) {
+    if let Err(err) = patch.parse(patch_str) {
         return error_reject("unable to parse patch", err);
     }
 

@@ -104,6 +104,9 @@
         },
         "include-patch": {
           "type": "boolean"
+        },
+        "include-log": {
+          "type": "boolean"
         }
       },
       "required": [

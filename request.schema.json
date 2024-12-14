@@ -85,6 +85,60 @@
               "patch": {
                 "type": "string",
                 "format": "base64"
+              },
+              "log": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "hash": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parents": {
+                      "type": "array",
+                      "minLength": 0,
+                      "maxLength": 2,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "author": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "author-date": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "committer": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "committer-date": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "signed-by-key-id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "hash",
+                    "parents",
+                    "author",
+                    "author-date",
+                    "committer",
+                    "committer-date",
+                    "message"
+                  ]
+                }
               }
             },
             "required": [

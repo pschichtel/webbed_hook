@@ -2,6 +2,27 @@ use crate::gitlab::GitlabMetadata;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
+pub use chrono::{DateTime, Utc};
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub struct GitLogEntry {
+    pub hash: String,
+    pub parents: Vec<String>,
+    pub author: String,
+    pub author_date: DateTime<Utc>,
+    pub committer: String,
+    pub committer_date: DateTime<Utc>,
+    pub signed_by_key_id: Option<String>,
+    pub message: String,
+}
+
+pub fn convert_to_utc_rfc3339(str: &str) -> Result<DateTime<Utc>, ()> {
+    iso8601::DateTime::from_str(str)
+        .map_err(|_| ())
+        .and_then(|date| chrono::DateTime::<chrono::FixedOffset>::try_from(date))
+        .map(|date| date.to_utc())
+}
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -25,9 +46,9 @@ pub enum Change {
         merge_base: Option<String>,
         force: bool,
         patch: Option<String>,
+        log: Option<Vec<GitLogEntry>>,
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]

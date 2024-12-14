@@ -2,45 +2,23 @@ mod configuration;
 mod webhook;
 mod util;
 mod gitlab;
+mod git;
 
-use webbed_hook_core::webhook::{Change, WebhookResponse};
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
+use crate::configuration::{Configuration, Hook, HookType};
+use crate::git::{format_patch, get_default_branch, git_log_for_range, git_log_limited, merge_base, load_config_from_default_branch};
+use crate::webhook::{perform_request, WebhookResult};
 use path_clean::PathClean;
 use std::env;
-use std::ffi::OsStr;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command, Output, Stdio};
-use crate::configuration::{Configuration, Hook, HookType};
-use crate::webhook::{perform_request, WebhookResult};
+use std::process::exit;
+use webbed_hook_core::webhook::{Change, WebhookResponse};
 
 #[derive(Debug)]
 pub struct ChangeLine {
     pub old_commit: String,
     pub new_commit: String,
     pub ref_name: String,
-}
-
-fn run_git_command<I, S>(args: I) -> Option<Output>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    Command::new("git")
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null())
-        .output()
-        .ok()
-        .and_then(|output| {
-            if output.status.success() {
-                Some(output)
-            } else {
-                None
-            }
-        })
 }
 
 fn read_changes_from_stdin() -> Option<Vec<ChangeLine>> {
@@ -105,7 +83,15 @@ fn resolve_change(line: ChangeLine, hook: &Hook) -> Option<Change> {
             } else { 
                 None
             };
-            let merge_base = get_merge_base(&line.old_commit, &line.new_commit);
+            let merge_base = merge_base(&line.old_commit, &line.new_commit);
+            let log = if hook.include_log.unwrap_or(true) {
+                match merge_base {
+                    Some(ref base) => Some(git_log_for_range(base, &line.new_commit)),
+                    None => Some(git_log_limited(100, &line.new_commit))
+                }
+            } else {
+                None
+            };
             let force = match merge_base {
                 Some(ref base) => base != &line.old_commit,
                 None => true
@@ -117,6 +103,7 @@ fn resolve_change(line: ChangeLine, hook: &Hook) -> Option<Change> {
                 merge_base,
                 force,
                 patch,
+                log,
             })
         },
         (true, false) => Some(Change::RemoveRef {
@@ -136,33 +123,6 @@ fn resolve_changes(changes: Vec<ChangeLine>, hook: &Hook) -> Vec<Change> {
     changes.into_iter()
         .filter_map(|line| resolve_change(line, hook))
         .collect()
-}
-
-fn load_config_from_default_branch() -> Option<Configuration> {
-    run_git_command(["show", "HEAD:hooks.json"])
-        .and_then(|output| {
-            serde_json::from_slice::<Configuration>(output.stdout.as_slice()).ok()
-        })
-}
-
-fn format_patch(old_commit: &str, new_commit: &str) -> Option<String> {
-    run_git_command(["format-patch", "--stdout", format!("{}..{}", old_commit, new_commit).as_str()])
-        .map(|output| {
-            BASE64_STANDARD.encode(output.stdout.as_slice())
-        })
-}
-
-fn get_merge_base(old_commit: &str, new_commit: &str) -> Option<String> {
-    run_git_command(vec!["merge-base", old_commit, new_commit])
-        .and_then(|output| {
-            String::from_utf8(output.stdout).map(|s| s.as_str().trim().to_string()).ok()
-        })
-}
-
-fn get_default_branch() -> Option<String> {
-    run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
-        .and_then(|output| String::from_utf8(output.stdout).ok())
-        .map(|branch_name| branch_name.trim_end().to_string())
 }
 
 pub fn get_absolute_program_path() -> Result<PathBuf, std::io::Error> {

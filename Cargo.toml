@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 webbed_hook_core = { path = "core" }
 nonempty = { version = "0.10.0", features = ["serialize"] }
-base64 = "0.22.1"
 path-clean = "1.0.1"
 regex = "1.11.1"
 serde = { version = "1.0.215", features = ["derive"] }

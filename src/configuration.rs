@@ -191,6 +191,7 @@ pub struct Hook {
     pub connect_timeout: Option<Duration>,
     pub greeting_messages: Option<NonEmpty<String>>,
     pub include_patch: Option<bool>,
+    pub include_log: Option<bool>,
 }
 
 impl Hook {
