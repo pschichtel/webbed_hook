@@ -8,6 +8,7 @@ use std::fmt::{Debug, Formatter};
 use std::path::Path;
 use std::time::Duration;
 use reqwest::Url;
+use serde_with::{serde_as, DurationMilliSeconds};
 
 pub struct Pattern(pub Regex);
 
@@ -187,6 +188,7 @@ pub struct HookBypass {
     pub messages: Option<Vec<String>>,
 }
 
+#[serde_as]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Hook {
@@ -194,7 +196,9 @@ pub struct Hook {
     pub url: URL,
     pub config: Option<Value>,
     pub reject_on_error: Option<bool>,
+    #[serde_as(as = "Option<DurationMilliSeconds<u64>>")]
     pub request_timeout: Option<Duration>,
+    #[serde_as(as = "Option<DurationMilliSeconds<u64>>")]
     pub connect_timeout: Option<Duration>,
     pub greeting_messages: Option<NonEmpty<String>>,
     pub include_patch: Option<bool>,
