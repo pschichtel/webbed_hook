@@ -5,7 +5,7 @@ mod gitlab;
 mod git;
 
 use crate::configuration::{Configuration, Hook, HookBypass, HookType};
-use crate::git::{format_patch, get_default_branch, git_log_for_range, git_log_limited, merge_base, load_config_from_default_branch};
+use crate::git::{format_patch, get_default_branch, git_log_for_range, git_log_limited, merge_base, git_show_file_from_default_branch};
 use crate::webhook::{perform_request, WebhookResult};
 use path_clean::PathClean;
 use std::env;
@@ -167,6 +167,28 @@ fn attempt_bypass(options: &Vec<String>, bypass: &Option<HookBypass>) {
             exit(0)
         }
     }
+}
+
+fn load_config_from_json(name: &str) -> Option<Configuration> {
+    git_show_file_from_default_branch(name)
+        .and_then(|content| serde_json::from_str(content.as_str()).ok())
+}
+
+fn load_config_from_yaml(name: &str) -> Option<Configuration> {
+    git_show_file_from_default_branch(name)
+        .and_then(|content| serde_yml::from_str(content.as_str()).ok())
+}
+
+fn load_config_from_toml(name: &str) -> Option<Configuration> {
+    git_show_file_from_default_branch(name)
+        .and_then(|content| toml::from_str(content.as_str()).ok())
+}
+
+fn load_config_from_default_branch() -> Option<Configuration> {
+    load_config_from_json("hooks.json")
+        .or_else(|| load_config_from_yaml("hooks.yaml"))
+        .or_else(|| load_config_from_yaml("hooks.yml"))
+        .or_else(|| load_config_from_toml("hooks.toml"))
 }
 
 fn main() {

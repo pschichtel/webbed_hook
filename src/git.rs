@@ -2,7 +2,6 @@ use std::ffi::OsStr;
 use std::io::{BufRead, Lines};
 use std::process::{Command, Output, Stdio};
 use webbed_hook_core::webhook::{convert_to_utc_rfc3339, DateTime, GitLogEntry, Utc};
-use crate::configuration::Configuration;
 
 const MULTILINE_INDENT: usize = 4;
 
@@ -135,11 +134,9 @@ fn parse_log(lines: &mut Lines<&[u8]>) -> Vec<GitLogEntry> {
     output
 }
 
-pub fn load_config_from_default_branch() -> Option<Configuration> {
-    run_git_command(["show", "HEAD:hooks.json"])
-        .and_then(|output| {
-            serde_json::from_slice::<Configuration>(output.stdout.as_slice()).ok()
-        })
+pub fn git_show_file_from_default_branch(file: &str) -> Option<String> {
+    run_git_command(["show", format!("HEAD:{}", file).as_str()])
+        .and_then(|output| String::from_utf8(output.stdout).ok())
 }
 
 pub fn format_patch(old_commit: &str, new_commit: &str) -> Option<String> {

@@ -10,6 +10,8 @@ path-clean = "1.0.1"
 regex = "1.11.1"
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = "1.0.134"
+serde_yml = "0.0.12"
+toml = { version = "0.8.19", features = [] }
 serde_with = "3.11.0"
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "deflate", "blocking"], default-features = false }
 
