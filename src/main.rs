@@ -176,8 +176,7 @@ fn load_config<E: Error, T: FnOnce(&str) -> Result<Configuration, E>>(name: &str
 }
 
 fn load_config_from_default_branch() -> Option<Configuration> {
-    load_config("hooks.json", |s| serde_json::from_str(s))
-        .or_else(|| load_config("hooks.yaml", |s| serde_yml::from_str(s)))
+    load_config("hooks.yaml", |s| serde_yml::from_str(s))
         .or_else(|| load_config("hooks.yml", |s| serde_yml::from_str(s)))
         .or_else(|| load_config("hooks.toml", toml::from_str))
 }

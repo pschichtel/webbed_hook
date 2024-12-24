@@ -3,12 +3,12 @@ use nonempty::NonEmpty;
 use regex::Regex;
 use serde::de::{Error, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer};
-use serde_json::Value;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
 use std::time::Duration;
 use reqwest::Url;
 use serde_with::{serde_as, DurationMilliSeconds};
+use webbed_hook_core::webhook::Value;
 
 pub struct Pattern(pub Regex);
 

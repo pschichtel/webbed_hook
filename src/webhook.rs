@@ -1,9 +1,8 @@
 use std::fmt::Display;
 use crate::configuration::Hook;
 use reqwest::redirect;
-use serde_json::Value;
 use std::time::Duration;
-use webbed_hook_core::webhook::{CertificateNonce, Change, Metadata, PushSignature, PushSignatureStatus, WebhookRequest, WebhookResponse};
+use webbed_hook_core::webhook::{CertificateNonce, Change, Metadata, PushSignature, PushSignatureStatus, Value, WebhookRequest, WebhookResponse};
 use crate::gitlab::get_gitlab_metadata;
 use crate::util::env_as;
 

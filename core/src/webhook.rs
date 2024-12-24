@@ -1,6 +1,6 @@
 use crate::gitlab::GitlabMetadata;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+pub use serde_json::Value;
 use std::str::FromStr;
 pub use chrono::{DateTime, Utc};
 
