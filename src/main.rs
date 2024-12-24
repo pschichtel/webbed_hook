@@ -9,6 +9,7 @@ use crate::git::{format_patch, get_default_branch, git_log_for_range, git_log_li
 use crate::webhook::{perform_request, WebhookResult};
 use path_clean::PathClean;
 use std::env;
+use std::error::Error;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::exit;
@@ -169,26 +170,16 @@ fn attempt_bypass(options: &Vec<String>, bypass: &Option<HookBypass>) {
     }
 }
 
-fn load_config_from_json(name: &str) -> Option<Configuration> {
+fn load_config<E: Error, T: FnOnce(&str) -> Result<Configuration, E>>(name: &str, parse: T) -> Option<Configuration> {
     git_show_file_from_default_branch(name)
-        .and_then(|content| serde_json::from_str(content.as_str()).ok())
-}
-
-fn load_config_from_yaml(name: &str) -> Option<Configuration> {
-    git_show_file_from_default_branch(name)
-        .and_then(|content| serde_yml::from_str(content.as_str()).ok())
-}
-
-fn load_config_from_toml(name: &str) -> Option<Configuration> {
-    git_show_file_from_default_branch(name)
-        .and_then(|content| toml::from_str(content.as_str()).ok())
+        .and_then(|content| parse(content.as_str()).ok())
 }
 
 fn load_config_from_default_branch() -> Option<Configuration> {
-    load_config_from_json("hooks.json")
-        .or_else(|| load_config_from_yaml("hooks.yaml"))
-        .or_else(|| load_config_from_yaml("hooks.yml"))
-        .or_else(|| load_config_from_toml("hooks.toml"))
+    load_config("hooks.json", |s| serde_json::from_str(s))
+        .or_else(|| load_config("hooks.yaml", |s| serde_yml::from_str(s)))
+        .or_else(|| load_config("hooks.yml", |s| serde_yml::from_str(s)))
+        .or_else(|| load_config("hooks.toml", |s| toml::from_str(s)))
 }
 
 fn main() {
