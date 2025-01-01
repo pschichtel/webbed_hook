@@ -6,7 +6,7 @@ use webbed_hook_core::webhook::{convert_to_utc_rfc3339, DateTime, GitLogEntry, U
 
 const MULTILINE_INDENT: usize = 4;
 
-fn run_git_command<I, S>(args: I) -> Option<Output>
+fn run_git_command<I, S>(args: I) -> Result<Option<Output>, Error>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
@@ -17,8 +17,7 @@ where
         .stderr(Stdio::null())
         .stdin(Stdio::null())
         .output()
-        .ok()
-        .and_then(|output| {
+        .map(|output| {
             if output.status.success() {
                 Some(output)
             } else {
@@ -135,13 +134,23 @@ fn parse_log(lines: &mut Lines<&[u8]>) -> Vec<GitLogEntry> {
     output
 }
 
-pub fn git_show_file_from_default_branch(file: &str) -> Option<String> {
+pub fn git_show_file_from_default_branch(file: &str) -> Result<Option<String>, String> {
     run_git_command(["show", format!("HEAD:{}", file).as_str()])
-        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map_err(|err| err.to_string())
+        .and_then(|output| {
+            match output {
+                Some(output) => String::from_utf8(output.stdout)
+                    .map(|s| Some(s))
+                    .map_err(|err| format!("invalid utf-8: {}", err).to_string()),
+                None => Ok(None)
+            }
+        })
 }
 
 pub fn diff(old_commit: &str, new_commit: &str) -> Option<String> {
     run_git_command(["diff", format!("{}..{}", old_commit, new_commit).as_str()])
+        .ok()
+        .flatten()
         .and_then(|output| String::from_utf8(output.stdout).ok())
 }
 
@@ -195,6 +204,8 @@ fn parse_name_status<T: Iterator<Item=Result<String, Error>>>(lines: &mut T) -> 
 
 pub fn diff_name_status(old_commit: &str, new_commit: &str) -> Vec<(FileStatus, String)> {
     run_git_command(["diff", "--name-status", format!("{}..{}", old_commit, new_commit).as_str()])
+        .ok()
+        .flatten()
         .map(|output| {
             let mut lines = output.stdout.lines();
             parse_name_status(&mut lines)
@@ -204,6 +215,8 @@ pub fn diff_name_status(old_commit: &str, new_commit: &str) -> Vec<(FileStatus, 
 
 pub fn merge_base(old_commit: &str, new_commit: &str) -> Option<String> {
     run_git_command(vec!["merge-base", old_commit, new_commit])
+        .ok()
+        .flatten()
         .and_then(|output| {
             String::from_utf8(output.stdout).map(|s| s.as_str().trim().to_string()).ok()
         })
@@ -214,6 +227,8 @@ fn git_log(args: Vec<&str>) -> Vec<GitLogEntry> {
     let mut full_args = vec!["log", "--reverse", format.as_str()];
     full_args.extend(args);
     run_git_command(full_args)
+        .ok()
+        .flatten()
         .map(|output| {
             let mut lines = output.stdout.lines();
             parse_log(&mut lines)
@@ -231,6 +246,8 @@ pub fn git_log_limited(limit: u32, to: &str) -> Vec<GitLogEntry> {
 
 pub fn get_default_branch() -> Option<String> {
     run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
+        .ok()
+        .flatten()
         .and_then(|output| String::from_utf8(output.stdout).ok())
         .map(|branch_name| branch_name.trim_end().to_string())
 }

@@ -232,15 +232,29 @@ fn attempt_bypass(options: &Vec<String>, bypass: &Option<HookBypass>) {
     }
 }
 
-fn load_config<E: Error, T: FnOnce(&str) -> Result<Configuration, E>>(name: &str, parse: T) -> Option<Configuration> {
+fn load_config<E: Error, T: FnOnce(&str) -> Result<Configuration, E>>(name: &str, parse: T) -> Result<Option<Configuration>, String> {
     git_show_file_from_default_branch(name)
-        .and_then(|content| parse(content.as_str()).ok())
+        .and_then(|content| {
+            match content {
+                Some(content) => parse(content.as_str())
+                    .map(|c| Some(c))
+                    .map_err(|err| err.to_string()),
+                None => Ok(None)
+            }
+        })
 }
 
-fn load_config_from_default_branch() -> Option<Configuration> {
-    load_config("hooks.yaml", |s| serde_yml::from_str(s))
-        .or_else(|| load_config("hooks.yml", |s| serde_yml::from_str(s)))
-        .or_else(|| load_config("hooks.toml", toml::from_str))
+fn load_config_from_default_branch() -> Result<Option<Configuration>, String> {
+    if let Some(yaml) = load_config("hooks.yaml", |s| serde_yml::from_str(s))? {
+        return Ok(Some(yaml))
+    }
+    if let Some(yaml) = load_config("hooks.yml", |s| serde_yml::from_str(s))? {
+        return Ok(Some(yaml))
+    }
+    if let Some(toml) = load_config("hooks.toml", toml::from_str)? {
+        return Ok(Some(toml))
+    }
+    Ok(None)
 }
 
 fn accept<T: Display>(messages: Vec<T>) {
@@ -263,8 +277,12 @@ fn main() {
         None => exit(0)
     };
     let config = match load_config_from_default_branch() {
-        Some(configuration) => configuration,
-        None => exit(0),
+        Ok(Some(configuration)) => configuration,
+        Ok(None) => exit(0),
+        Err(err) => {
+            eprintln!("Failed to parse hook configuration: {}", err);
+            exit(0)
+        }
     };
 
     let config = match config {
