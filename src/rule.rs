@@ -8,7 +8,7 @@ use std::fmt::Display;
 use std::time::Duration;
 use regex::Regex;
 use webbed_hook_core::webhook::{Value, WebhookResponse};
-use crate::Change;
+use crate::{Change, GitData};
 
 #[serde_as]
 #[derive(Debug, Deserialize)]
@@ -110,8 +110,8 @@ fn is_derived_from(ref_a: &str, change: &Change, accept_removes: &Option<bool>) 
 
 fn any_file_matches<T: Fn(&FileStatus) -> bool>(context: &RuleContext, accept_removes: &Option<bool>, filter: T, pattern: &Regex) -> Result<bool, ConditionError> {
     let file_status: &Vec<(FileStatus, String)> = match context.change {
-        Change::AddRef { file_status, .. } => file_status,
-        Change::UpdateRef { file_status, .. } => file_status,
+        Change::AddRef { git_data: GitData { file_status, .. }, .. } => file_status,
+        Change::UpdateRef { git_data: GitData { file_status, .. }, .. } => file_status,
         Change::RemoveRef { .. } => return Ok(accept_removes.unwrap_or(true)),
     };
     
@@ -131,7 +131,7 @@ impl Condition {
             }
             Condition::AnyCommitMessageMatches { pattern: Pattern(pattern), accept_removes } => {
                 let log = match context.change {
-                    Change::UpdateRef { log, .. } => log,
+                    Change::UpdateRef { git_data: GitData { log, .. }, .. } => log,
                     Change::AddRef { .. } => &vec![],
                     Change::RemoveRef { .. } => return Ok(accept_removes.unwrap_or(true)),
                 };
@@ -360,7 +360,7 @@ impl Rule {
             }
             Rule::Webhook(condition) => {
                 let change = match context.change {
-                    Change::AddRef { name, commit, patch, log, .. } => {
+                    Change::AddRef { name, commit, git_data: GitData { patch, log, .. }, .. } => {
                         let patch = (*(*patch)).clone();
                         let log = (*(*log)).to_vec();
                         webbed_hook_core::webhook::Change::AddRef {
@@ -374,7 +374,7 @@ impl Rule {
                         name: name.clone(),
                         commit: commit.clone(),
                     },
-                    Change::UpdateRef { name, old_commit, new_commit, merge_base, force, patch, log, .. } => {
+                    Change::UpdateRef { name, old_commit, new_commit, merge_base, force, git_data: GitData { patch, log, .. }, .. } => {
                         let patch = (*(*patch)).clone();
                         let log = (*(*log)).to_vec();
                         webbed_hook_core::webhook::Change::UpdateRef {

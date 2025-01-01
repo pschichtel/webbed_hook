@@ -20,13 +20,17 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use webbed_hook_core::webhook::{GitLogEntry};
 
+pub struct GitData {
+    pub patch: Box<dyn Deref<Target=Option<String>>>,
+    pub log: Box<dyn Deref<Target=Vec<GitLogEntry>>>,
+    pub file_status: Box<dyn Deref<Target=Vec<(FileStatus, String)>>>,
+}
+
 pub enum Change {
     AddRef {
         name: String,
         commit: String,
-        patch: Box<dyn Deref<Target=Option<String>>>,
-        log: Box<dyn Deref<Target=Vec<GitLogEntry>>>,
-        file_status: Box<dyn Deref<Target=Vec<(FileStatus, String)>>>,
+        git_data: GitData,
     },
     RemoveRef {
         name: String,
@@ -38,9 +42,7 @@ pub enum Change {
         new_commit: String,
         merge_base: Option<String>,
         force: bool,
-        patch: Box<dyn Deref<Target=Option<String>>>,
-        log: Box<dyn Deref<Target=Vec<GitLogEntry>>>,
-        file_status: Box<dyn Deref<Target=Vec<(FileStatus, String)>>>,
+        git_data: GitData,
     }
 }
 
@@ -153,15 +155,18 @@ fn resolve_change(line: ChangeLine, default_branch: &str) -> Option<Change> {
                 Some(ref base) => base != &line.old_commit,
                 None => true
             };
+            let git_data = GitData {
+                patch,
+                log,
+                file_status,
+            };
             Some(Change::UpdateRef {
                 name: line.ref_name,
                 old_commit: line.old_commit,
                 new_commit: line.new_commit,
                 merge_base,
                 force,
-                patch,
-                log,
-                file_status,
+                git_data,
             })
         },
         (true, false) => Some(Change::RemoveRef {
@@ -171,12 +176,15 @@ fn resolve_change(line: ChangeLine, default_branch: &str) -> Option<Change> {
         (false, true) => {
             let merge_base = merge_base(default_branch, &line.new_commit);
             let log = lazy_log(&merge_base, &line.new_commit);
-            Some(Change::AddRef {
-                name: line.ref_name,
-                commit: line.new_commit,
+            let git_data = GitData {
                 patch,
                 log,
                 file_status,
+            };
+            Some(Change::AddRef {
+                name: line.ref_name,
+                commit: line.new_commit,
+                git_data,
             })
         },
         (false, false) => None
@@ -277,7 +285,6 @@ fn main() {
 
         let resolved_changes = resolve_changes(changes, default_branch.as_str());
 
-        // TODO parallel?
         for change in resolved_changes.iter() {
             let ctx = RuleContext {
                 default_branch: default_branch.as_str(),
