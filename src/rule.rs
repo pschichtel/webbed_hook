@@ -30,57 +30,79 @@ pub struct RuleContext<'a> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "kebab-case")]
 pub enum Condition {
+    #[serde(rename = "ref-is")]
     RefIs {
         name: String,
     },
+    #[serde(rename = "ref-matches")]
     RefMatches {
         pattern: Pattern
     },
+    #[serde(rename = "any-commit-message-matches")]
     AnyCommitMessageMatches {
         pattern: Pattern,
         accept_removes: Option<bool>,
     },
+    #[serde(rename = "modified-file-matches")]
     ModifiedFileMatches {
         pattern: Pattern,
         accept_removes: Option<bool>,
     },
+    #[serde(rename = "added-file-matches")]
     AddedFileMatches {
         pattern: Pattern,
         accept_removes: Option<bool>,
     },
+    #[serde(rename = "removed-file-matches")]
     RemovedFileMatches {
         pattern: Pattern,
         accept_removes: Option<bool>,
     },
+    #[serde(rename = "derived-from-default-branch")]
     DerivedFromDefaultBranch {
         accept_removes: Option<bool>,
     },
+    #[serde(rename = "derived-from-branch")]
     DerivedFromBranch {
         accept_removes: Option<bool>,
         name: String,
     },
+    #[serde(rename = "linear-history")]
     LinearHistory,
+    #[serde(rename = "ref-add")]
     RefAdd,
+    #[serde(rename = "ref-remove")]
     RefRemove,
+    #[serde(rename = "ref-update")]
     RefUpdate,
+    #[serde(rename = "and")]
     And {
         conditions: Box<NonEmpty<Condition>>,
     },
+    #[serde(rename = "or")]
     Or {
         conditions: Box<NonEmpty<Condition>>,
     },
+    #[serde(rename = "xor")]
     Xor {
         conditions: Box<NonEmpty<Condition>>,
     },
+    #[serde(rename = "not")]
     Not {
         condition: Box<Condition>,
     },
+    #[serde(rename = "true")]
     True,
+    #[serde(rename = "false")]
     False,
+    #[serde(rename = "bypass-requested")]
     BypassRequested {
         option: String,
     },
+    #[serde(rename = "rule")]
     Rule {
         rule: Box<Rule>,
     },
@@ -226,6 +248,7 @@ impl Condition {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct RuleBranch {
     pub condition: Condition,
     pub rule: Rule,
@@ -254,13 +277,18 @@ pub struct RuleResult {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
 pub enum RuleAction {
+    #[serde(rename = "accept")]
     Accept,
+    #[serde(rename = "reject")]
     Reject,
+    #[serde(rename = "continue")]
     Continue,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct OnRuleComplete {
     pub action: RuleAction,
     pub messages: Vec<String>,
@@ -282,18 +310,25 @@ impl OptionOnRuleComplete for Option<OnRuleComplete> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "kebab-case")]
 pub enum Rule {
+    #[serde(rename = "chain")]
     Chain {
         rules: NonEmpty<Box<Rule>>,
     },
+    #[serde(rename = "select")]
     Select {
         first_of: Vec<RuleBranch>,
         default: Option<Box<Rule>>,
     },
+    #[serde(rename = "webhook")]
     Webhook(WebhookRule),
+    #[serde(rename = "accept")]
     Accept {
         messages: Vec<String>,
     },
+    #[serde(rename = "reject")]
     Reject {
         messages: Vec<String>,
     },
