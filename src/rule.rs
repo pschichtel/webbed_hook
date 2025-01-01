@@ -146,7 +146,13 @@ fn any_file_matches<T: Fn(&FileStatus) -> bool>(context: &RuleContext, accept_re
 impl Condition {
     pub fn evaluate(&self, context: &RuleContext, depth: u8) -> Result<bool, ConditionError> {
         context.config.trace(format!("Evaluating condition: {:?}", self), depth);
-        let result = match self {
+        let result = self.evaluate_traced(context, depth);
+        context.config.trace(format!("Result: {:?}", result), depth);
+        result
+    }
+    
+    fn evaluate_traced(&self, context: &RuleContext, depth: u8) -> Result<bool, ConditionError> {
+        match self {
             Condition::RefIs { name } => {
                 Ok(context.change.ref_name() == name.as_str())
             }
@@ -257,9 +263,7 @@ impl Condition {
                     Change::UpdateRef { force, .. } => Ok(!force),
                 }
             }
-        };
-        context.config.trace(format!("Result: {:?}", result), depth);
-        result
+        }
     }
 }
 
@@ -359,7 +363,13 @@ pub enum Rule {
 impl Rule {
     pub fn evaluate(&self, context: &RuleContext, depth: u8) -> Result<RuleResult, RuleError> {
         context.config.trace(format!("Evaluating rule: {:?}", self), depth);
-        let result = match self {
+        let result = self.evaluate_traced(context, depth);
+        context.config.trace(format!("Result: {:?}", result), depth);
+        result
+        
+    }
+    fn evaluate_traced(&self, context: &RuleContext, depth: u8) -> Result<RuleResult, RuleError> {
+        match self {
             Rule::Chain { rules } => {
                 let mut result: RuleResult = RuleResult { action: RuleAction::Reject, messages: vec![] };
                 for rule in rules.iter() {
@@ -454,8 +464,6 @@ impl Rule {
             Rule::Reject { messages } => {
                 Ok(RuleResult { action: RuleAction::Reject, messages: messages.clone() })
             },
-        };
-        context.config.trace(format!("Result: {:?}", result), depth);
-        result
+        }
     }
 }
