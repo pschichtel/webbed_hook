@@ -308,6 +308,7 @@ fn main() {
                 default_branch: default_branch.as_str(),
                 push_options: push_options.as_slice(),
                 change,
+                config: &config,
             };
 
             match hook.rule.evaluate(&ctx) {

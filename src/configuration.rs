@@ -5,7 +5,7 @@ use reqwest::Url;
 use serde::de::{Error, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer};
 use serde_with::serde_as;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
 
 pub struct Pattern(pub Regex);
@@ -78,7 +78,7 @@ impl <'de> Deserialize<'de> for Pattern {
 
 impl Debug for Pattern {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        Debug::fmt(&self.0, f)
     }
 }
 
@@ -152,7 +152,7 @@ impl <'de> Deserialize<'de> for URL {
 
 impl Debug for URL {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        Debug::fmt(&self.0, f)
     }
 }
 
@@ -184,6 +184,15 @@ pub struct ConfigurationVersion1 {
     pub post_receive: Option<Hook>,
     pub update: Option<Hook>,
     pub bypass: Option<HookBypass>,
+    pub trace: Option<bool>,
+}
+
+impl ConfigurationVersion1 {
+    pub(crate) fn trace<T: Display>(&self, line: T) {
+        if self.trace.unwrap_or(false) {
+            eprintln!("trace: {}", line);
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
