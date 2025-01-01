@@ -39,7 +39,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_add() {
+    fn test_metadata_gathering() {
         env::set_var("GL_USERNAME", "some-user");
         env::set_var("GL_ID", "key-123123");
         env::set_var("GL_PROJECT_PATH", "some-group/some-project");
@@ -55,5 +55,4 @@ mod tests {
         };
         assert_eq!(get_gitlab_metadata(), Some(expected));
     }
-
 }

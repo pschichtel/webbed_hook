@@ -1,5 +1,5 @@
 use std::ffi::OsStr;
-use std::io::{BufRead, Lines};
+use std::io::{BufRead, Error, Lines};
 use std::process::{Command, Output, Stdio};
 use std::str::FromStr;
 use webbed_hook_core::webhook::{convert_to_utc_rfc3339, DateTime, GitLogEntry, Utc};
@@ -177,22 +177,27 @@ impl FromStr for FileStatus {
     }
 }
 
+fn parse_name_status<T: Iterator<Item=Result<String, Error>>>(lines: &mut T) -> Vec<(FileStatus, String)> {
+    lines
+        .filter_map(|line| {
+            let line = line.ok()?;
+            let mut iter = line.trim().split_ascii_whitespace();
+            let status = FileStatus::from_str(iter.next()?).ok()?;
+            let name = iter.next()?;
+            if let Some(_) = iter.next() {
+                None
+            } else {
+                Some((status, name.to_string()))
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
 pub fn diff_name_status(old_commit: &str, new_commit: &str) -> Vec<(FileStatus, String)> {
     run_git_command(["diff", "--name-status", format!("{}..{}", old_commit, new_commit).as_str()])
         .map(|output| {
-            output.stdout.lines()
-                .filter_map(|line| {
-                    let line = line.ok()?;
-                    let mut iter = line.trim().split_ascii_whitespace();
-                    let status = FileStatus::from_str(iter.next()?).ok()?;
-                    let name = iter.next()?;
-                    if let Some(_) = iter.next() {
-                        None
-                    } else {
-                        Some((status, name.to_string()))
-                    }
-                })
-                .collect::<Vec<_>>()
+            let mut lines = output.stdout.lines();
+            parse_name_status(&mut lines)
         })
         .unwrap_or_default()
 }
@@ -228,4 +233,42 @@ pub fn get_default_branch() -> Option<String> {
     run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
         .and_then(|output| String::from_utf8(output.stdout).ok())
         .map(|branch_name| branch_name.trim_end().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+    use super::*;
+
+    #[test]
+    fn test_name_status_parsing() {
+        let name_status_text = indoc! {"
+            M       Cargo.lock
+            M       Cargo.toml
+            M       README.md
+            M       core/Cargo.toml
+            M       core/src/webhook.rs
+            M       src/configuration.rs
+            M       src/git.rs
+            M       src/main.rs
+            A       src/rule.rs
+            M       src/webhook.rs
+        "};
+
+        let mut line_iter = name_status_text.lines().map(|s| Ok(s.to_owned()));
+        let actual = parse_name_status(&mut line_iter);
+        let expected = vec![
+            (FileStatus::Modified, "Cargo.lock".to_owned()),
+            (FileStatus::Modified, "Cargo.toml".to_owned()),
+            (FileStatus::Modified, "README.md".to_owned()),
+            (FileStatus::Modified, "core/Cargo.toml".to_owned()),
+            (FileStatus::Modified, "core/src/webhook.rs".to_owned()),
+            (FileStatus::Modified, "src/configuration.rs".to_owned()),
+            (FileStatus::Modified, "src/git.rs".to_owned()),
+            (FileStatus::Modified, "src/main.rs".to_owned()),
+            (FileStatus::Added, "src/rule.rs".to_owned()),
+            (FileStatus::Modified, "src/webhook.rs".to_owned()),
+        ];
+        assert_eq!(actual, expected);
+    }
 }
