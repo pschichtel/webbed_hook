@@ -6,9 +6,11 @@ use nonempty::NonEmpty;
 use regex::Regex;
 use serde::Deserialize;
 use serde_with::{serde_as, DurationMilliSeconds};
+use std::collections::HashSet;
 use std::fmt::Display;
+use std::ops::Deref;
 use std::time::Duration;
-use webbed_hook_core::webhook::{Value, WebhookResponse};
+use webbed_hook_core::webhook::{GitLogEntry, Value, WebhookResponse};
 
 #[serde_as]
 #[derive(Debug, Deserialize)]
@@ -71,6 +73,10 @@ pub enum Condition {
         accept_removes: Option<bool>,
         name: String,
     },
+    #[serde(rename = "all-commits-signed")]
+    AllCommitsSigned {
+        allowed_key_ids: Option<NonEmpty<String>>,
+    },
     #[serde(rename = "linear-history")]
     LinearHistory,
     #[serde(rename = "ref-add")]
@@ -106,6 +112,10 @@ pub enum Condition {
     #[serde(rename = "rule")]
     Rule {
         rule: Box<Rule>,
+    },
+    #[serde(rename = "is-tag")]
+    IsTag {
+        name: String,
     },
 }
 
@@ -143,6 +153,14 @@ fn any_file_matches<T: Fn(&FileStatus) -> bool>(context: &RuleContext, accept_re
     }))
 }
 
+fn get_commit_log<'a>(context: &'a RuleContext) -> Option<&'a Box<dyn Deref<Target=Vec<GitLogEntry>>>> {
+    match context.change {
+        Change::UpdateRef { git_data: GitData { log, .. }, .. } => Some(log),
+        Change::AddRef { git_data: GitData { log, .. }, .. } => Some(log),
+        Change::RemoveRef { .. } => None,
+    }
+}
+
 impl Condition {
     pub fn evaluate(&self, context: &RuleContext, depth: u8) -> Result<bool, ConditionError> {
         context.config.trace(format!("Evaluating condition: {:?}", self), depth);
@@ -150,7 +168,7 @@ impl Condition {
         context.config.trace(format!("Result: {:?}", result), depth);
         result
     }
-    
+
     fn evaluate_traced(&self, context: &RuleContext, depth: u8) -> Result<bool, ConditionError> {
         match self {
             Condition::RefIs { name } => {
@@ -160,10 +178,9 @@ impl Condition {
                 Ok(pattern.is_match(context.change.ref_name()))
             }
             Condition::AnyCommitMessageMatches { pattern: Pattern(pattern), accept_removes } => {
-                let log = match context.change {
-                    Change::UpdateRef { git_data: GitData { log, .. }, .. } => log,
-                    Change::AddRef { .. } => &vec![],
-                    Change::RemoveRef { .. } => return Ok(accept_removes.unwrap_or(true)),
+                let log = match get_commit_log(context) {
+                    Some(log) => log,
+                    None => return Ok(accept_removes.unwrap_or(true)),
                 };
                 Ok(log.iter().any(|e| pattern.is_match(e.message.as_str())))
             }
@@ -263,6 +280,32 @@ impl Condition {
                     Change::UpdateRef { force, .. } => Ok(!force),
                 }
             }
+            Condition::AllCommitsSigned { allowed_key_ids } => {
+                let log = match get_commit_log(context) {
+                    Some(log) => log,
+                    None => return Ok(true)
+                };
+
+                match allowed_key_ids {
+                    Some(allowed_key_ids) => {
+                        let mut allowed = HashSet::new();
+                        allowed.extend(allowed_key_ids.iter().map(String::as_str));
+                        for e in log.iter() {
+                            match e.signed_by_key_id {
+                                Some(ref id) if allowed.contains(id.as_str()) => {
+                                    continue
+                                }
+                                _ => return Ok(false)
+                            }
+                        }
+                        Ok(false)
+                    }
+                    None => {
+                        Ok(log.iter().all(|e| e.signed_by_key_id.is_some()))
+                    }
+                }
+            }
+            Condition::IsTag { name } => Ok(context.change.ref_name() == format!("refs/tags/{}", name)),
         }
     }
 }
@@ -366,7 +409,7 @@ impl Rule {
         let result = self.evaluate_traced(context, depth);
         context.config.trace(format!("Result: {:?}", result), depth);
         result
-        
+
     }
     fn evaluate_traced(&self, context: &RuleContext, depth: u8) -> Result<RuleResult, RuleError> {
         match self {
