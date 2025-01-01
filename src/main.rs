@@ -311,7 +311,7 @@ fn main() {
                 config: &config,
             };
 
-            match hook.rule.evaluate(&ctx) {
+            match hook.rule.evaluate(&ctx, 0) {
                 Ok(RuleResult { action, messages }) => {
                     match action {
                         RuleAction::Accept => accept(messages),

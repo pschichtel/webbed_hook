@@ -144,18 +144,16 @@ fn any_file_matches<T: Fn(&FileStatus) -> bool>(context: &RuleContext, accept_re
 }
 
 impl Condition {
-    pub fn evaluate(&self, context: &RuleContext) -> Result<bool, ConditionError> {
-        match self {
+    pub fn evaluate(&self, context: &RuleContext, depth: u8) -> Result<bool, ConditionError> {
+        context.config.trace(format!("Evaluating condition: {:?}", self), depth);
+        let result = match self {
             Condition::RefIs { name } => {
-                context.config.trace("Evaluating ref-is condition");
                 Ok(context.change.ref_name() == name.as_str())
             }
             Condition::RefMatches { pattern: Pattern(pattern) } => {
-                context.config.trace("Evaluating ref-matches condition");
                 Ok(pattern.is_match(context.change.ref_name()))
             }
             Condition::AnyCommitMessageMatches { pattern: Pattern(pattern), accept_removes } => {
-                context.config.trace("Evaluating any-commit-message-matches condition");
                 let log = match context.change {
                     Change::UpdateRef { git_data: GitData { log, .. }, .. } => log,
                     Change::AddRef { .. } => &vec![],
@@ -164,55 +162,46 @@ impl Condition {
                 Ok(log.iter().any(|e| pattern.is_match(e.message.as_str())))
             }
             Condition::ModifiedFileMatches { pattern: Pattern(pattern), accept_removes } => {
-                context.config.trace("Evaluating modified-file-matches condition");
                 any_file_matches(context, accept_removes, |s| s == &FileStatus::Modified || s == &FileStatus::Renamed, pattern)
             }
             Condition::AddedFileMatches { pattern: Pattern(pattern), accept_removes } => {
-                context.config.trace("Evaluating added-file-matches condition");
                 any_file_matches(context, accept_removes, |s| s == &FileStatus::Added, pattern)
             }
             Condition::RemovedFileMatches { pattern: Pattern(pattern), accept_removes } => {
-                context.config.trace("Evaluating removed-file-matches condition");
                 any_file_matches(context, accept_removes, |s| s == &FileStatus::Deleted, pattern)
             }
             Condition::DerivedFromDefaultBranch { accept_removes } => {
-                context.config.trace("Evaluating derived-from-default-branch condition");
                 is_derived_from(context.default_branch, context.change, accept_removes)
             }
             Condition::DerivedFromBranch { name, accept_removes } => {
-                context.config.trace("Evaluating derived-from-branch condition");
                 is_derived_from(name, context.change, accept_removes)
             }
             Condition::BypassRequested { option } => {
-                context.config.trace("Evaluating bypass-requested condition");
                 Ok(context.push_options.contains(option))
             }
             Condition::And { conditions} => {
-                context.config.trace("Evaluating and condition");
                 for condition in conditions.iter() {
-                    if !condition.evaluate(context)? {
+                    if !condition.evaluate(context, depth + 1)? {
                         return Ok(false)
                     }
                 }
                 Ok(true)
             }
             Condition::Or { conditions} => {
-                context.config.trace("Evaluating or condition");
                 for condition in conditions.iter() {
-                    if condition.evaluate(context)? {
+                    if condition.evaluate(context, depth + 1)? {
                         return Ok(true)
                     }
                 }
                 Ok(false)
             }
             Condition::Xor { conditions} => {
-                context.config.trace("Evaluating xor condition");
                 match conditions.len() {
                     1 => Ok(true),
                     _ => {
-                        let first_result = conditions.head.evaluate(context)?;
+                        let first_result = conditions.head.evaluate(context, depth + 1)?;
                         for other in conditions.tail.iter() {
-                            let other_result = other.evaluate(context)?;
+                            let other_result = other.evaluate(context, depth + 1)?;
                             if other_result != first_result {
                                 return Ok(true)
                             }
@@ -222,20 +211,16 @@ impl Condition {
                 }
             }
             Condition::Not { condition } => {
-                context.config.trace("Evaluating not condition");
-                Ok(!condition.evaluate(context)?)
+                Ok(!condition.evaluate(context, depth + 1)?)
             }
             Condition::True => {
-                context.config.trace("Evaluating true condition");
                 Ok(true)
             },
             Condition::False => {
-                context.config.trace("Evaluating false condition");
                 Ok(false)
             },
             Condition::Rule { rule } => {
-                context.config.trace("Evaluating rule condition");
-                match rule.evaluate(context) {
+                match rule.evaluate(context, depth + 1) {
                     Ok(RuleResult { action, .. }) => match action {
                         RuleAction::Accept => Ok(true),
                         RuleAction::Reject => Ok(false),
@@ -245,7 +230,6 @@ impl Condition {
                 }
             },
             Condition::RefAdd => {
-                context.config.trace("Evaluating ref-add condition");
                 match &context.change {
                     Change::AddRef { .. } => Ok(true),
                     Change::RemoveRef { .. } => Ok(false),
@@ -253,7 +237,6 @@ impl Condition {
                 }
             },
             Condition::RefRemove => {
-                context.config.trace("Evaluating ref-remove condition");
                 match &context.change {
                     Change::AddRef { .. } => Ok(false),
                     Change::RemoveRef { .. } => Ok(true),
@@ -261,7 +244,6 @@ impl Condition {
                 }
             },
             Condition::RefUpdate => {
-                context.config.trace("Evaluating ref-update condition");
                 match &context.change {
                     Change::AddRef { .. } => Ok(false),
                     Change::RemoveRef { .. } => Ok(false),
@@ -269,14 +251,15 @@ impl Condition {
                 }
             },
             Condition::LinearHistory => {
-                context.config.trace("Evaluating linear-history condition");
                 match &context.change {
                     Change::AddRef { .. } => Ok(true),
                     Change::RemoveRef { .. } => Ok(true),
                     Change::UpdateRef { force, .. } => Ok(!force),
                 }
             }
-        }
+        };
+        context.config.trace(format!("Result: {:?}", result), depth);
+        result
     }
 }
 
@@ -328,16 +311,16 @@ pub struct OnRuleComplete {
 }
 
 trait OptionOnRuleComplete {
-    fn to_rule_result(&self) -> RuleResult;
+    fn to_rule_result(&self, default_action: RuleAction) -> RuleResult;
 }
 
 impl OptionOnRuleComplete for Option<OnRuleComplete> {
-    fn to_rule_result(&self) -> RuleResult {
+    fn to_rule_result(&self, default_action: RuleAction) -> RuleResult {
         match self {
             Some(OnRuleComplete { action, messages }) => {
                 RuleResult { action: *action, messages: messages.clone() }
             }
-            None => RuleResult { action: RuleAction::Continue, messages: vec![] },
+            None => RuleResult { action: default_action, messages: vec![] },
         }
     }
 }
@@ -374,13 +357,13 @@ pub enum Rule {
 }
 
 impl Rule {
-    pub fn evaluate(&self, context: &RuleContext) -> Result<RuleResult, RuleError> {
-        match self {
+    pub fn evaluate(&self, context: &RuleContext, depth: u8) -> Result<RuleResult, RuleError> {
+        context.config.trace(format!("Evaluating rule: {:?}", self), depth);
+        let result = match self {
             Rule::Chain { rules } => {
-                context.config.trace("Evaluating chain rule");
                 let mut result: RuleResult = RuleResult { action: RuleAction::Reject, messages: vec![] };
                 for rule in rules.iter() {
-                    result = rule.evaluate(context)?;
+                    result = rule.evaluate(context, depth + 1)?;
 
                     match result.action {
                         RuleAction::Accept => break,
@@ -396,11 +379,10 @@ impl Rule {
                 Ok(result)
             }
             Rule::Select { first_of, default } => {
-                context.config.trace("Evaluating select rule");
                 for RuleBranch { condition, rule } in first_of {
-                    match condition.evaluate(context) {
+                    match condition.evaluate(context, depth + 1) {
                         Ok(true) => {
-                            return rule.evaluate(context);
+                            return rule.evaluate(context, depth + 1);
                         },
                         Ok(false) => continue,
                         Err(err) => return Err(RuleError::ConditionError(err)),
@@ -408,7 +390,7 @@ impl Rule {
                 }
                 match default {
                     Some(rule) => {
-                        rule.evaluate(context)
+                        rule.evaluate(context, depth + 1)
                     }
                     None => {
                         Ok(RuleResult { action: RuleAction::Reject, messages: vec![] })
@@ -417,20 +399,18 @@ impl Rule {
             }
 
             Rule::Conditional { condition, on_success, on_failure } => {
-                context.config.trace("Evaluating conditional rule");
-                match condition.evaluate(context) {
+                match condition.evaluate(context, depth + 1) {
                     Ok(ok) => {
                         if ok {
-                            Ok(on_success.to_rule_result())
+                            Ok(on_success.to_rule_result(RuleAction::Continue))
                         } else {
-                            Ok(on_failure.to_rule_result())
+                            Ok(on_failure.to_rule_result(RuleAction::Reject))
                         }
                     }
                     Err(err) => Err(RuleError::ConditionError(err)),
                 }
             }
             Rule::Webhook(condition) => {
-                context.config.trace("Evaluating webhook rule");
                 let change = match context.change {
                     Change::AddRef { name, commit, git_data: GitData { patch, log, .. }, .. } => {
                         let patch = (*(*patch)).clone();
@@ -469,13 +449,13 @@ impl Rule {
                 }
             }
             Rule::Accept { messages } => {
-                context.config.trace("Evaluating accept rule");
                 Ok(RuleResult { action: RuleAction::Accept, messages: messages.clone() })
             },
             Rule::Reject { messages } => {
-                context.config.trace("Evaluating reject rule");
                 Ok(RuleResult { action: RuleAction::Reject, messages: messages.clone() })
             },
-        }
+        };
+        context.config.trace(format!("Result: {:?}", result), depth);
+        result
     }
 }

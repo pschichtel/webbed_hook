@@ -188,9 +188,9 @@ pub struct ConfigurationVersion1 {
 }
 
 impl ConfigurationVersion1 {
-    pub(crate) fn trace<T: Display>(&self, line: T) {
+    pub(crate) fn trace<T: Display>(&self, line: T, depth: u8) {
         if self.trace.unwrap_or(false) {
-            eprintln!("trace: {}", line);
+            eprintln!("trace: {}> {}", "-".repeat(depth.into()), line);
         }
     }
 }
