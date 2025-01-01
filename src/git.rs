@@ -1,6 +1,7 @@
 use std::ffi::OsStr;
 use std::io::{BufRead, Lines};
 use std::process::{Command, Output, Stdio};
+use std::str::FromStr;
 use webbed_hook_core::webhook::{convert_to_utc_rfc3339, DateTime, GitLogEntry, Utc};
 
 const MULTILINE_INDENT: usize = 4;
@@ -139,9 +140,61 @@ pub fn git_show_file_from_default_branch(file: &str) -> Option<String> {
         .and_then(|output| String::from_utf8(output.stdout).ok())
 }
 
-pub fn format_patch(old_commit: &str, new_commit: &str) -> Option<String> {
-    run_git_command(["format-patch", "--stdout", format!("{}..{}", old_commit, new_commit).as_str()])
+pub fn diff(old_commit: &str, new_commit: &str) -> Option<String> {
+    run_git_command(["diff", format!("{}..{}", old_commit, new_commit).as_str()])
         .and_then(|output| String::from_utf8(output.stdout).ok())
+}
+
+#[derive(PartialEq, Debug)]
+pub enum FileStatus {
+    Added,
+    Copied,
+    Deleted,
+    Modified,
+    Renamed,
+    TypeChanged,
+    Unmerged,
+    Unknown,
+    BrokenPairing,
+}
+
+impl FromStr for FileStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "A" => Ok(FileStatus::Added),
+            "C" => Ok(FileStatus::Copied),
+            "D" => Ok(FileStatus::Deleted),
+            "M" => Ok(FileStatus::Modified),
+            "R" => Ok(FileStatus::Renamed),
+            "T" => Ok(FileStatus::TypeChanged),
+            "U" => Ok(FileStatus::Unmerged),
+            "X" => Ok(FileStatus::Unknown),
+            "B" => Ok(FileStatus::BrokenPairing),
+            _ => Err(format!("unknown file status: {}", s)),
+        }
+    }
+}
+
+pub fn diff_name_status(old_commit: &str, new_commit: &str) -> Vec<(FileStatus, String)> {
+    run_git_command(["diff", "--name-status", format!("{}..{}", old_commit, new_commit).as_str()])
+        .map(|output| {
+            output.stdout.lines()
+                .filter_map(|line| {
+                    let line = line.ok()?;
+                    let mut iter = line.trim().split_ascii_whitespace();
+                    let status = FileStatus::from_str(iter.next()?).ok()?;
+                    let name = iter.next()?;
+                    if let Some(_) = iter.next() {
+                        None
+                    } else {
+                        Some((status, name.to_string()))
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
 }
 
 pub fn merge_base(old_commit: &str, new_commit: &str) -> Option<String> {

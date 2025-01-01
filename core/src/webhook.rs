@@ -4,7 +4,7 @@ pub use serde_json::Value;
 use std::str::FromStr;
 pub use chrono::{DateTime, Utc};
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct GitLogEntry {
     pub hash: String,
@@ -32,6 +32,8 @@ pub enum Change {
     AddRef {
         name: String,
         commit: String,
+        patch: Option<String>,
+        log: Option<Vec<GitLogEntry>>,
     },
     #[serde(rename = "remove")]
     RemoveRef {
@@ -47,16 +49,6 @@ pub enum Change {
         force: bool,
         patch: Option<String>,
         log: Option<Vec<GitLogEntry>>,
-    }
-}
-
-impl Change {
-    pub fn ref_name(&self) -> &str {
-        match self {
-            Change::AddRef { name, .. } => name.as_str(),
-            Change::RemoveRef { name, .. } => name.as_str(),
-            Change::UpdateRef { name, .. } => name.as_str(),
-        }
     }
 }
 

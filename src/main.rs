@@ -5,20 +5,56 @@ mod gitlab;
 mod git;
 mod rule;
 
+use std::cell::LazyCell;
 use crate::rule::{RuleAction, RuleContext, RuleResult};
 use crate::configuration::{Configuration, HookBypass, HookType};
-use crate::git::{format_patch, get_default_branch, git_log_for_range, git_log_limited, git_show_file_from_default_branch, merge_base};
+use crate::git::{diff, diff_name_status, get_default_branch, git_log_for_range, git_log_limited, git_show_file_from_default_branch, merge_base, FileStatus};
 use crate::util::env_as;
 use path_clean::PathClean;
 use std::env;
 use std::error::Error;
 use std::fmt::Display;
 use std::io::BufRead;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::exit;
-use webbed_hook_core::webhook::Change;
+use webbed_hook_core::webhook::{GitLogEntry};
 
-#[derive(Debug)]
+pub enum Change {
+    AddRef {
+        name: String,
+        commit: String,
+        patch: Box<dyn Deref<Target=Option<String>>>,
+        log: Box<dyn Deref<Target=Vec<GitLogEntry>>>,
+        file_status: Box<dyn Deref<Target=Vec<(FileStatus, String)>>>,
+    },
+    RemoveRef {
+        name: String,
+        commit: String,
+    },
+    UpdateRef {
+        name: String,
+        old_commit: String,
+        new_commit: String,
+        merge_base: Option<String>,
+        force: bool,
+        patch: Box<dyn Deref<Target=Option<String>>>,
+        log: Box<dyn Deref<Target=Vec<GitLogEntry>>>,
+        file_status: Box<dyn Deref<Target=Vec<(FileStatus, String)>>>,
+    }
+}
+
+impl Change {
+    pub fn ref_name(&self) -> &str {
+        match self {
+            Change::AddRef { name, .. } => name.as_str(),
+            Change::RemoveRef { name, .. } => name.as_str(),
+            Change::UpdateRef { name, .. } => name.as_str(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ChangeLine {
     pub old_commit: String,
     pub new_commit: String,
@@ -76,18 +112,43 @@ fn is_hash_all_zeros(hash: &str) -> bool {
     hash.chars().all(|c| c == '0')
 }
 
-fn resolve_change(line: ChangeLine) -> Option<Change> {
+fn lazy_diff(old_commit: &str, new_commit: &str) -> Box<dyn Deref<Target=Option<String>>> {
+    let old_commit = old_commit.to_owned();
+    let new_commit = new_commit.to_owned();
+
+    Box::new(LazyCell::new(move || diff(old_commit.as_str(), new_commit.as_str())))
+}
+
+fn lazy_file_status(old_commit: &str, new_commit: &str) -> Box<dyn Deref<Target=Vec<(FileStatus, String)>>> {
+    let old_commit = old_commit.to_owned();
+    let new_commit = new_commit.to_owned();
+
+    Box::new(LazyCell::new(move || diff_name_status(old_commit.as_str(), new_commit.as_str())))
+}
+
+fn lazy_log(base: &Option<String>, new_commit: &str) -> Box<dyn Deref<Target=Vec<GitLogEntry>>> {
+    let new_commit = new_commit.to_owned();
+    match base {
+        Some(ref base) => {
+            let base = base.to_owned();
+            Box::new(LazyCell::new(move || git_log_for_range(base.as_str(), new_commit.as_str())))
+        },
+        None => {
+            Box::new(LazyCell::new(move || git_log_limited(100, new_commit.as_str())))
+        }
+    }
+}
+
+fn resolve_change(line: ChangeLine, default_branch: &str) -> Option<Change> {
     let old_exists = !is_hash_all_zeros(&line.old_commit);
     let new_exists = !is_hash_all_zeros(&line.new_commit);
+    let patch = lazy_diff(&line.old_commit, &line.new_commit);
+    let file_status = lazy_file_status(&line.old_commit, &line.new_commit);
 
     match (old_exists, new_exists) {
         (true, true) => {
-            let patch = format_patch(&line.old_commit, &line.new_commit);
             let merge_base = merge_base(&line.old_commit, &line.new_commit);
-            let log = match merge_base {
-                Some(ref base) => Some(git_log_for_range(base, &line.new_commit)),
-                None => Some(git_log_limited(100, &line.new_commit))
-            };
+            let log = lazy_log(&merge_base, &line.new_commit);
             let force = match merge_base {
                 Some(ref base) => base != &line.old_commit,
                 None => true
@@ -100,24 +161,32 @@ fn resolve_change(line: ChangeLine) -> Option<Change> {
                 force,
                 patch,
                 log,
+                file_status,
             })
         },
         (true, false) => Some(Change::RemoveRef {
             name: line.ref_name,
             commit: line.old_commit,
         }),
-        (false, true) => Some(Change::AddRef {
-            name: line.ref_name,
-            commit: line.new_commit,
-        }),
+        (false, true) => {
+            let merge_base = merge_base(default_branch, &line.new_commit);
+            let log = lazy_log(&merge_base, &line.new_commit);
+            Some(Change::AddRef {
+                name: line.ref_name,
+                commit: line.new_commit,
+                patch,
+                log,
+                file_status,
+            })
+        },
         (false, false) => None
     }
 
 }
 
-fn resolve_changes(changes: Vec<ChangeLine>) -> Vec<Change> {
+fn resolve_changes(changes: Vec<ChangeLine>, default_branch: &str) -> Vec<Change> {
     changes.into_iter()
-        .filter_map(|line| resolve_change(line))
+        .filter_map(|line| resolve_change(line, default_branch))
         .collect()
 }
 
@@ -206,8 +275,9 @@ fn main() {
             }
         };
 
-        let resolved_changes = resolve_changes(changes);
+        let resolved_changes = resolve_changes(changes, default_branch.as_str());
 
+        // TODO parallel?
         for change in resolved_changes.iter() {
             let ctx = RuleContext {
                 default_branch: default_branch.as_str(),

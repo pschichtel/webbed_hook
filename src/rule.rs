@@ -1,12 +1,14 @@
 use crate::configuration::{Pattern, URL};
-use crate::git::merge_base;
+use crate::git::{merge_base, FileStatus};
 use crate::webhook::{perform_request, HookError, WebhookResult};
 use nonempty::NonEmpty;
 use serde::Deserialize;
 use serde_with::{serde_as, DurationMilliSeconds};
 use std::fmt::Display;
 use std::time::Duration;
-use webbed_hook_core::webhook::{Change, Value, WebhookResponse};
+use regex::Regex;
+use webbed_hook_core::webhook::{Value, WebhookResponse};
+use crate::Change;
 
 #[serde_as]
 #[derive(Debug, Deserialize)]
@@ -58,6 +60,7 @@ pub enum Condition {
         accept_removes: Option<bool>,
         name: String,
     },
+    LinearHistory,
     RefAdd,
     RefRemove,
     RefUpdate,
@@ -105,6 +108,18 @@ fn is_derived_from(ref_a: &str, change: &Change, accept_removes: &Option<bool>) 
     Ok(merge_base(ref_a, ref_b).is_some())
 }
 
+fn any_file_matches<T: Fn(&FileStatus) -> bool>(context: &RuleContext, accept_removes: &Option<bool>, filter: T, pattern: &Regex) -> Result<bool, ConditionError> {
+    let file_status: &Vec<(FileStatus, String)> = match context.change {
+        Change::AddRef { file_status, .. } => file_status,
+        Change::UpdateRef { file_status, .. } => file_status,
+        Change::RemoveRef { .. } => return Ok(accept_removes.unwrap_or(true)),
+    };
+    
+    Ok(file_status.iter().any(|(status, name)| {
+        filter(status) && pattern.is_match(name.as_str())
+    }))
+}
+
 impl Condition {
     pub fn evaluate(&self, context: &RuleContext) -> Result<bool, ConditionError> {
         match self {
@@ -116,23 +131,20 @@ impl Condition {
             }
             Condition::AnyCommitMessageMatches { pattern: Pattern(pattern), accept_removes } => {
                 let log = match context.change {
-                    Change::UpdateRef { log, .. } => match log {
-                        Some(entries) => entries,
-                        None => &vec![],
-                    },
+                    Change::UpdateRef { log, .. } => log,
                     Change::AddRef { .. } => &vec![],
                     Change::RemoveRef { .. } => return Ok(accept_removes.unwrap_or(true)),
                 };
                 Ok(log.iter().any(|e| pattern.is_match(e.message.as_str())))
             }
             Condition::ModifiedFileMatches { pattern: Pattern(pattern), accept_removes } => {
-                todo!()
+                any_file_matches(context, accept_removes, |s| s == &FileStatus::Modified || s == &FileStatus::Renamed, pattern)
             }
             Condition::AddedFileMatches { pattern: Pattern(pattern), accept_removes } => {
-                todo!()
+                any_file_matches(context, accept_removes, |s| s == &FileStatus::Added, pattern)
             }
             Condition::RemovedFileMatches { pattern: Pattern(pattern), accept_removes } => {
-                todo!()
+                any_file_matches(context, accept_removes, |s| s == &FileStatus::Deleted, pattern)
             }
             Condition::DerivedFromDefaultBranch { accept_removes } => {
                 is_derived_from(context.default_branch, context.change, accept_removes)
@@ -204,6 +216,11 @@ impl Condition {
                 Change::RemoveRef { .. } => Ok(false),
                 Change::UpdateRef { .. } => Ok(true),
             },
+            Condition::LinearHistory => match &context.change {
+                Change::AddRef { .. } => Ok(true),
+                Change::RemoveRef { .. } => Ok(true),
+                Change::UpdateRef { force, .. } => Ok(!force),
+            }
         }
     }
 }
@@ -342,7 +359,36 @@ impl Rule {
                 }
             }
             Rule::Webhook(condition) => {
-                match perform_request(context.default_branch, context.push_options.into(), condition, Vec::new()) {
+                let change = match context.change {
+                    Change::AddRef { name, commit, patch, log, .. } => {
+                        let patch = (*(*patch)).clone();
+                        let log = (*(*log)).to_vec();
+                        webbed_hook_core::webhook::Change::AddRef {
+                            name: name.clone(),
+                            commit: commit.clone(),
+                            patch,
+                            log: Some(log),
+                        }
+                    },
+                    Change::RemoveRef { name, commit } => webbed_hook_core::webhook::Change::RemoveRef {
+                        name: name.clone(),
+                        commit: commit.clone(),
+                    },
+                    Change::UpdateRef { name, old_commit, new_commit, merge_base, force, patch, log, .. } => {
+                        let patch = (*(*patch)).clone();
+                        let log = (*(*log)).to_vec();
+                        webbed_hook_core::webhook::Change::UpdateRef {
+                            name: name.clone(),
+                            old_commit: old_commit.clone(),
+                            new_commit: new_commit.clone(),
+                            merge_base: merge_base.clone(),
+                            force: *force,
+                            patch,
+                            log: Some(log),
+                        }
+                    },
+                };
+                match perform_request(context.default_branch, context.push_options.into(), condition, vec![change]) {
                     Ok(WebhookResult(ok, WebhookResponse(messages))) => Ok(RuleResult {
                         action: if ok { RuleAction::Continue } else { RuleAction::Reject },
                         messages,
