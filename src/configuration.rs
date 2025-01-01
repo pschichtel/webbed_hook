@@ -1,14 +1,12 @@
+use crate::rule::Rule;
 use crate::get_absolute_program_path;
-use nonempty::NonEmpty;
 use regex::Regex;
+use reqwest::Url;
 use serde::de::{Error, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer};
+use serde_with::serde_as;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
-use std::time::Duration;
-use reqwest::Url;
-use serde_with::{serde_as, DurationMilliSeconds};
-use webbed_hook_core::webhook::Value;
 
 pub struct Pattern(pub Regex);
 
@@ -158,23 +156,6 @@ impl Debug for URL {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
-pub enum RefSelector {
-    #[serde(rename = "tag")]
-    Tag {
-        name: String,
-    },
-    #[serde(rename = "branch")]
-    Branch {
-        name: String,
-    },
-    #[serde(rename = "ref-regex")]
-    RefRegex {
-        pattern: Pattern,
-    }
-}
-
 pub enum HookType {
     PreReceive,
     Update,
@@ -192,45 +173,8 @@ pub struct HookBypass {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Hook {
-    pub ref_selectors: NonEmpty<RefSelector>,
-    pub url: URL,
-    pub config: Option<Value>,
+    pub rule: Rule,
     pub reject_on_error: Option<bool>,
-    #[serde_as(as = "Option<DurationMilliSeconds<u64>>")]
-    pub request_timeout: Option<Duration>,
-    #[serde_as(as = "Option<DurationMilliSeconds<u64>>")]
-    pub connect_timeout: Option<Duration>,
-    pub greeting_messages: Option<NonEmpty<String>>,
-    pub include_patch: Option<bool>,
-    pub include_log: Option<bool>,
-    pub bypass: Option<HookBypass>,
-}
-
-impl Hook {
-    pub fn applies_to(&self, ref_name: &str) -> bool {
-        for selector in &self.ref_selectors {
-            match selector {
-                RefSelector::Branch { name } => {
-                    let full_ref = format!("refs/heads/{}", name);
-                    if ref_name == full_ref {
-                        return true;
-                    }
-                }
-                RefSelector::Tag { name } => {
-                    let full_ref = format!("refs/tags/{}", name);
-                    if ref_name == full_ref {
-                        return true;
-                    }
-                }
-                RefSelector::RefRegex { pattern } => {
-                    if pattern.0.is_match(ref_name) {
-                        return true
-                    }
-                }
-            }
-        }
-        false
-    }
 }
 
 #[derive(Debug, Deserialize)]

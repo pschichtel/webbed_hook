@@ -50,6 +50,16 @@ pub enum Change {
     }
 }
 
+impl Change {
+    pub fn ref_name(&self) -> &str {
+        match self {
+            Change::AddRef { name, .. } => name.as_str(),
+            Change::RemoveRef { name, .. } => name.as_str(),
+            Change::UpdateRef { name, .. } => name.as_str(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 #[serde(tag = "type")]

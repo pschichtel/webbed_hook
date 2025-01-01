@@ -3,18 +3,20 @@ mod webhook;
 mod util;
 mod gitlab;
 mod git;
+mod rule;
 
-use crate::configuration::{Configuration, Hook, HookBypass, HookType};
-use crate::git::{format_patch, get_default_branch, git_log_for_range, git_log_limited, merge_base, git_show_file_from_default_branch};
-use crate::webhook::{perform_request, WebhookResult};
+use crate::rule::{RuleAction, RuleContext, RuleResult};
+use crate::configuration::{Configuration, HookBypass, HookType};
+use crate::git::{format_patch, get_default_branch, git_log_for_range, git_log_limited, git_show_file_from_default_branch, merge_base};
+use crate::util::env_as;
 use path_clean::PathClean;
 use std::env;
 use std::error::Error;
+use std::fmt::Display;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::exit;
-use webbed_hook_core::webhook::{Change, WebhookResponse};
-use crate::util::env_as;
+use webbed_hook_core::webhook::Change;
 
 #[derive(Debug)]
 pub struct ChangeLine {
@@ -74,25 +76,17 @@ fn is_hash_all_zeros(hash: &str) -> bool {
     hash.chars().all(|c| c == '0')
 }
 
-fn resolve_change(line: ChangeLine, hook: &Hook) -> Option<Change> {
+fn resolve_change(line: ChangeLine) -> Option<Change> {
     let old_exists = !is_hash_all_zeros(&line.old_commit);
     let new_exists = !is_hash_all_zeros(&line.new_commit);
 
     match (old_exists, new_exists) {
         (true, true) => {
-            let patch = if hook.include_patch.unwrap_or(true) {
-                format_patch(&line.old_commit, &line.new_commit)
-            } else { 
-                None
-            };
+            let patch = format_patch(&line.old_commit, &line.new_commit);
             let merge_base = merge_base(&line.old_commit, &line.new_commit);
-            let log = if hook.include_log.unwrap_or(true) {
-                match merge_base {
-                    Some(ref base) => Some(git_log_for_range(base, &line.new_commit)),
-                    None => Some(git_log_limited(100, &line.new_commit))
-                }
-            } else {
-                None
+            let log = match merge_base {
+                Some(ref base) => Some(git_log_for_range(base, &line.new_commit)),
+                None => Some(git_log_limited(100, &line.new_commit))
             };
             let force = match merge_base {
                 Some(ref base) => base != &line.old_commit,
@@ -121,9 +115,9 @@ fn resolve_change(line: ChangeLine, hook: &Hook) -> Option<Change> {
 
 }
 
-fn resolve_changes(changes: Vec<ChangeLine>, hook: &Hook) -> Vec<Change> {
+fn resolve_changes(changes: Vec<ChangeLine>) -> Vec<Change> {
     changes.into_iter()
-        .filter_map(|line| resolve_change(line, hook))
+        .filter_map(|line| resolve_change(line))
         .collect()
 }
 
@@ -135,15 +129,6 @@ pub fn get_absolute_program_path() -> Result<PathBuf, std::io::Error> {
     } else {
         env::current_dir().map(|p| p.join(path))
     }.map(|p| p.clean())
-}
-
-fn applies_to_changes(hook: &Hook, changes: &Vec<ChangeLine>) -> bool {
-    for change in changes {
-        if hook.applies_to(change.ref_name.as_str()) {
-            return true;
-        }
-    }
-    false
 }
 
 fn get_push_options() -> Vec<String> {
@@ -181,6 +166,20 @@ fn load_config_from_default_branch() -> Option<Configuration> {
         .or_else(|| load_config("hooks.toml", toml::from_str))
 }
 
+fn accept<T: Display>(messages: Vec<T>) {
+    for msg in messages {
+        println!("{}", msg);
+    }
+    exit(0);
+}
+
+fn reject<T: Display>(messages: Vec<T>) {
+    for msg in messages {
+        eprintln!("{}", msg);
+    }
+    exit(1);
+}
+
 fn main() {
     let default_branch = match get_default_branch() {
         Some(branch) => branch,
@@ -199,8 +198,7 @@ fn main() {
     attempt_bypass(&push_options, &config.bypass);
 
     if let Some((hook, hook_type)) = config.select_hook() {
-        attempt_bypass(&push_options, &hook.bypass);
-        
+
         let changes = match get_changes(hook_type) {
             Some(changes) => changes,
             None => {
@@ -208,31 +206,32 @@ fn main() {
             }
         };
 
-        if !applies_to_changes(&hook, &changes) {
-            exit(0);
-        }
+        let resolved_changes = resolve_changes(changes);
 
-        let resolved_changes = resolve_changes(changes, hook);
+        for change in resolved_changes.iter() {
+            let ctx = RuleContext {
+                default_branch: default_branch.as_str(),
+                push_options: push_options.as_slice(),
+                change,
+            };
 
-        match perform_request(default_branch, push_options, hook, resolved_changes) {
-            Ok(WebhookResult(success, WebhookResponse(messages))) => {
-                if success {
-                    for message in messages {
-                        println!("{}", message);
+            match hook.rule.evaluate(&ctx) {
+                Ok(RuleResult { action, messages }) => {
+                    match action {
+                        RuleAction::Accept => accept(messages),
+                        RuleAction::Continue => accept(messages),
+                        RuleAction::Reject => reject(messages),
                     }
-                } else {
-                    for message in messages {
-                        eprintln!("{}", message);
+                }
+                Err(err) => {
+                    let reject_on_err = hook.reject_on_error.unwrap_or(true);
+                    if reject_on_err {
+                        reject(vec![format!("change rejected, evaluation failed: {}", err)]);
+                    } else {
+                        accept(vec![format!("change accepted, but evaluation failed: {}", err)]);
                     }
-                    exit(1);
                 }
             }
-            Err(error) => {
-                eprintln!("hook failed: {}", error);
-                let reject = hook.reject_on_error.unwrap_or(true);
-                exit(if reject { 1 } else { 0 });
-            }
         }
-
     }
 }

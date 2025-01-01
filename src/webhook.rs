@@ -1,8 +1,8 @@
 use std::fmt::Display;
-use crate::configuration::Hook;
 use reqwest::redirect;
 use std::time::Duration;
 use webbed_hook_core::webhook::{CertificateNonce, Change, Metadata, PushSignature, PushSignatureStatus, Value, WebhookRequest, WebhookResponse};
+use crate::rule::WebhookRule;
 use crate::gitlab::get_gitlab_metadata;
 use crate::util::env_as;
 
@@ -78,6 +78,7 @@ fn get_metadata() -> Metadata {
         .unwrap_or(Metadata::None)
 }
 
+#[derive(Debug)]
 pub enum HookError {
     Request(reqwest::Error),
     Validation(String),
@@ -104,13 +105,13 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 #[derive(Debug)]
 pub struct WebhookResult(pub bool, pub WebhookResponse);
 
-pub fn perform_request(default_branch: String, push_options: Vec<String>, hook: &Hook, changes: Vec<Change>) -> Result<WebhookResult, HookError> {
-    let connect_timeout = hook.connect_timeout.unwrap_or(DEFAULT_CONNECT_TIMEOUT);
+pub fn perform_request(default_branch: &str, push_options: Vec<String>, condition: &WebhookRule, changes: Vec<Change>) -> Result<WebhookResult, HookError> {
+    let connect_timeout = condition.connect_timeout.unwrap_or(DEFAULT_CONNECT_TIMEOUT);
     if connect_timeout > MAX_CONNECT_TIMEOUT {
         return Err(HookError::Validation(format!("Connect timeout of {}ms is longer than maximum value of {}ms", connect_timeout.as_millis(), &MAX_CONNECT_TIMEOUT.as_millis())))
     }
 
-    let request_timeout = hook.request_timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let request_timeout = condition.request_timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
     if connect_timeout > MAX_REQUEST_TIMEOUT {
         return Err(HookError::Validation(format!("Request timeout of {}ms is longer than maximum value of {}ms", request_timeout.as_millis(), &MAX_REQUEST_TIMEOUT.as_millis())))
     }
@@ -124,7 +125,7 @@ pub fn perform_request(default_branch: String, push_options: Vec<String>, hook: 
         .http1_only()
         .build()
         .expect("Failed to build the client, this is a bug!");
-    let config = match hook.config {
+    let config = match condition.config {
         Some(ref c) => c.clone(),
         None => Value::Null,
     };
@@ -139,13 +140,13 @@ pub fn perform_request(default_branch: String, push_options: Vec<String>, hook: 
         metadata: get_metadata(),
     };
     
-    if let Some(ref greetings) = hook.greeting_messages {
+    if let Some(ref greetings) = condition.greeting_messages {
         for greeting in greetings {
             println!("{}", greeting);
         }
     }
 
-    client.post(hook.url.0.clone())
+    client.post(condition.url.0.clone())
         .json(&request_body)
         .send()
         .map(|res| {
