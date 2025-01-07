@@ -44,6 +44,8 @@ pub enum Condition {
     RefMatches {
         pattern: Pattern
     },
+    #[serde(rename = "is-default-branch")]
+    IsDefaultBranch,
     #[serde(rename = "any-commit-message-matches")]
     AnyCommitMessageMatches {
         pattern: Pattern,
@@ -306,6 +308,7 @@ impl Condition {
                 }
             }
             Condition::IsTag { name } => Ok(context.change.ref_name() == format!("refs/tags/{}", name)),
+            Condition::IsDefaultBranch => Ok(context.change.ref_name() == format!("refs/heads/{}", context.default_branch)),
         }
     }
 }
