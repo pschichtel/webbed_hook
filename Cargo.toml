@@ -1,21 +1,21 @@
 [package]
 name = "webbed_hook"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 webbed_hook_core = { path = "core" }
 nonempty = { version = "0.11.0", features = ["serialize"] }
 path-clean = "1.0.1"
 regex = "1.11.1"
-serde = { version = "1.0.217", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive"] }
 serde_yml = "0.0.12"
-toml = { version = "0.8.19", features = [] }
+toml = { version = "0.8.20", features = [] }
 serde_with = "3.12.0"
 reqwest = { version = "0.12.12", features = ["json", "rustls-tls", "deflate", "blocking"], default-features = false }
 
 [dev-dependencies]
-indoc = "2.0.5"
+indoc = "2.0.6"
 
 [profile.release]
 lto = "fat"

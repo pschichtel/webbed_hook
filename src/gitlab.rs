@@ -40,11 +40,13 @@ mod tests {
 
     #[test]
     fn test_metadata_gathering() {
-        env::set_var("GL_USERNAME", "some-user");
-        env::set_var("GL_ID", "key-123123");
-        env::set_var("GL_PROJECT_PATH", "some-group/some-project");
-        env::set_var("GL_REPOSITORY", "project-456456");
-        env::set_var("GL_PROTOCOL", "ssh");
+        unsafe {
+            env::set_var("GL_USERNAME", "some-user");
+            env::set_var("GL_ID", "key-123123");
+            env::set_var("GL_PROJECT_PATH", "some-group/some-project");
+            env::set_var("GL_REPOSITORY", "project-456456");
+            env::set_var("GL_PROTOCOL", "ssh");
+        }
 
         let expected = GitlabMetadata {
             id: GitlabId::Key { id: 123123 },

@@ -241,19 +241,19 @@ fn hook_by_name<'a>(configuration: &'a ConfigurationVersion1, name: &str) -> Opt
     match name {
         "pre-receive" => {
             match &configuration.pre_receive {
-                Some(ref h) => Some((h, HookType::PreReceive)),
+                Some(h) => Some((h, HookType::PreReceive)),
                 None => None
             }
         },
         "update" => {
             match &configuration.update {
-                Some(ref h) => Some((h, HookType::Update)),
+                Some(h) => Some((h, HookType::Update)),
                 None => None
             }
         },
         "post-receive" => {
             match &configuration.post_receive {
-                Some(ref h) => Some((h, HookType::PostReceive)),
+                Some(h) => Some((h, HookType::PostReceive)),
                 None => None
             }
         },

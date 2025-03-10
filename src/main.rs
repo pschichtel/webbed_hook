@@ -131,7 +131,7 @@ fn lazy_file_status(old_commit: &str, new_commit: &str) -> Box<dyn Deref<Target=
 fn lazy_log(base: &Option<String>, new_commit: &str) -> Box<dyn Deref<Target=Vec<GitLogEntry>>> {
     let new_commit = new_commit.to_owned();
     match base {
-        Some(ref base) => {
+        Some(base) => {
             let base = base.to_owned();
             Box::new(LazyCell::new(move || git_log_for_range(base.as_str(), new_commit.as_str())))
         },
@@ -220,7 +220,7 @@ fn get_push_options() -> Vec<String> {
 }
 
 fn attempt_bypass(options: &Vec<String>, bypass: &Option<HookBypass>) {
-    if let Some(ref bypass) = bypass {
+    if let Some(bypass) = bypass {
         if options.contains(&bypass.push_option) {
             if let Some(ref messages) = bypass.messages {
                 for line in messages {
