@@ -35,7 +35,7 @@ async fn validate(req: HttpRequest, body: web::Json<WebhookRequest>) -> impl Res
     };
 
     let patch_str = match patch {
-        Some(ref patch) => patch,
+        Some(patch) => patch,
         None => return accept("no files changed!"),
     };
 
