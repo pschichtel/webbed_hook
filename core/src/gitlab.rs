@@ -3,11 +3,9 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "kebab-case")]
 pub enum GitlabId {
-    #[serde(rename = "user")]
     User { id: u64 },
-    #[serde(rename = "key")]
     Key { id: u64 },
 }
 
@@ -49,12 +47,10 @@ impl FromStr for GitlabId {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub enum GitlabProtocol {
-    #[serde(rename = "http")]
     HTTP,
-    #[serde(rename = "ssh")]
     SSH,
-    #[serde(rename = "web")]
     WEB,
 }
 

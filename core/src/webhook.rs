@@ -56,31 +56,20 @@ pub enum Change {
 #[serde(rename_all = "kebab-case")]
 #[serde(tag = "type")]
 pub enum Metadata {
-    #[serde(rename = "gitlab")]
     GitLab(GitlabMetadata),
-
-    #[serde(rename = "none")]
     None,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub enum PushSignatureStatus {
-    #[serde(rename = "good")]
     Good,
-    #[serde(rename = "bad")]
     Bad,
-    #[serde(rename = "unknown-validity")]
     UnknownValidity,
-    #[serde(rename = "expired")]
     Expired,
-    #[serde(rename = "expired-key")]
     ExpiredKey,
-    #[serde(rename = "revoked-key")]
     RevokedKey,
-    #[serde(rename = "cannot-check")]
     CannotCheck,
-    #[serde(rename = "no-signature")]
     NoSignature,
 }
 
@@ -106,15 +95,10 @@ impl FromStr for PushSignatureStatus {
 #[serde(rename_all = "kebab-case")]
 #[serde(tag = "type")]
 pub enum CertificateNonce {
-    #[serde(rename = "unsolicited")]
     Unsolicited { nonce: String },
-    #[serde(rename = "missing")]
     Missing,
-    #[serde(rename = "bad")]
     Bad { nonce: String },
-    #[serde(rename = "ok")]
     Ok { nonce: String },
-    #[serde(rename = "slop")]
     Slop { nonce: String, stale_seconds: u32 },
 }
 
