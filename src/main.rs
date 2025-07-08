@@ -251,7 +251,7 @@ fn load_config_from_default_branch() -> Result<Option<Configuration>, String> {
     if let Some(yaml) = load_config("hooks.yml", |s| serde_yml::from_str(s))? {
         return Ok(Some(yaml))
     }
-    if let Some(toml) = load_config("hooks.toml", toml::from_str)? {
+    if let Some(toml) = load_config("hooks.toml", |s| toml::from_str(s))? {
         return Ok(Some(toml))
     }
     Ok(None)
