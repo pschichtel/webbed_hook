@@ -15,7 +15,7 @@ serde_with = "=3.24.0"
 reqwest = { version = "=0.13.5", features = ["json", "rustls", "deflate", "blocking"], default-features = false }
 
 [dev-dependencies]
-indoc = "=2.0.7"
+indoc = "=2.0.8"
 
 [profile.release]
 lto = "fat"
